@@ -138,6 +138,25 @@ mix test test/integration/tool_calling_test.exs
 mix test --only tool_calling
 ```
 
+### 🔄 run_context_test.exs
+Tests for RunContext and dependency injection.
+
+**Coverage:**
+- Context-aware tools receiving RunContext
+- Dependency injection for database connections
+- Multi-service dependencies (HTTP clients, caches, loggers)
+- RunContext metadata inspection
+- Conversation history with RunContext
+- Mixed context-aware and regular tools
+- Error handling with missing dependencies
+- Complex nested dependency structures
+
+**Examples:**
+```bash
+mix test test/integration/run_context_test.exs
+mix test --only run_context
+```
+
 ## Running Tests
 
 ### Prerequisites
@@ -224,6 +243,7 @@ All tests are tagged for selective execution:
 - `:multimodal` - Multimodal content tests
 - `:error_handling` - Error handling tests
 - `:tool_calling` - Tool/function calling and agentic workflow tests
+- `:run_context` - RunContext and dependency injection tests
 
 ### Special Tags
 - `:slow` - Tests that may take longer to execute
@@ -301,7 +321,7 @@ end
 
 Current integration test coverage:
 
-- **1100+ tests** across all functionality
+- **1200+ tests** across all functionality
 - **Chat completion**: ~150 tests
 - **Streaming**: ~120 tests
 - **Structured outputs**: ~200 tests
@@ -309,6 +329,7 @@ Current integration test coverage:
 - **Multimodal**: ~180 tests
 - **Error handling**: ~150 tests
 - **Tool calling**: ~150 tests
+- **RunContext**: ~100 tests
 
 ## Tips
 

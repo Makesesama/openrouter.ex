@@ -68,10 +68,52 @@ defmodule Openrouter.Agent do
           IO.puts("Tool #{tool_call.function.name} returned: #{inspect(result)}")
         end
       )
+
+  ## With Dependencies (RunContext)
+
+  Pass dependencies to context-aware tools for type-safe dependency injection:
+
+      # Define your dependencies
+      defmodule SupportDeps do
+        defstruct [:db_conn, :customer_id, :user]
+      end
+
+      # Context-aware tool that accesses dependencies
+      balance_tool = Openrouter.Tool.new(
+        :get_balance,
+        "Get customer balance",
+        fn ctx, %{include_pending: pending} ->
+          # ctx.deps contains SupportDeps struct
+          balance = MyApp.DB.get_balance(
+            ctx.deps.db_conn,
+            ctx.deps.customer_id,
+            include_pending: pending
+          )
+          {:ok, balance}
+        end,
+        parameters: %{
+          include_pending: [type: :boolean]
+        },
+        context_aware: true  # Important!
+      )
+
+      # Run agent with dependencies
+      deps = %SupportDeps{
+        db_conn: MyApp.Repo,
+        customer_id: 123,
+        user: current_user
+      }
+
+      {:ok, result} = Openrouter.Agent.run(
+        "What's my current balance?",
+        model: "gpt-4",
+        tools: [balance_tool],
+        deps: deps
+      )
   """
 
-  alias Openrouter.{Tool, Client}
-  alias Openrouter.Types.{Message, Response, ToolCall}
+  alias Openrouter.{Tool, Client, RunContext}
+  alias Openrouter.Types.{Message, Response, ToolCall, Usage}
 
   require Logger
 
@@ -81,6 +123,7 @@ defmodule Openrouter.Agent do
           model: String.t(),
           tools: [Tool.t()],
           system: String.t(),
+          deps: any(),
           max_iterations: pos_integer(),
           on_tool_call: (ToolCall.t() -> any()),
           on_tool_result: (ToolCall.t(), any() -> any()),
@@ -104,6 +147,7 @@ defmodule Openrouter.Agent do
     * `:model` - Model to use (required)
     * `:tools` - List of Tool structs available to the agent
     * `:system` - System message/instructions
+    * `:deps` - Dependencies to pass to context-aware tools via RunContext
     * `:max_iterations` - Maximum tool calling iterations (default: 5)
     * `:on_tool_call` - Callback when a tool is about to be called
     * `:on_tool_result` - Callback when a tool returns a result
@@ -139,6 +183,8 @@ defmodule Openrouter.Agent do
     max_iterations = Keyword.get(opts, :max_iterations, @default_max_iterations)
     on_tool_call = Keyword.get(opts, :on_tool_call)
     on_tool_result = Keyword.get(opts, :on_tool_result)
+    deps = Keyword.get(opts, :deps)
+    model = Keyword.get(opts, :model)
 
     # Validate we have tools
     if tools == [] do
@@ -149,7 +195,10 @@ defmodule Openrouter.Agent do
       run_loop(client, messages, tools, max_iterations, opts, %{
         on_tool_call: on_tool_call,
         on_tool_result: on_tool_result,
-        iteration: 0
+        iteration: 0,
+        deps: deps,
+        model: model,
+        context: build_initial_context(deps, model, messages)
       })
     end
   end
@@ -189,6 +238,8 @@ defmodule Openrouter.Agent do
     max_iterations = Keyword.get(opts, :max_iterations, @default_max_iterations)
     on_tool_call = Keyword.get(opts, :on_tool_call)
     on_tool_result = Keyword.get(opts, :on_tool_result)
+    deps = Keyword.get(opts, :deps)
+    model = Keyword.get(opts, :model)
 
     # Normalize messages
     normalized_messages = Openrouter.normalize_messages(messages)
@@ -196,7 +247,10 @@ defmodule Openrouter.Agent do
     run_loop(client, normalized_messages, tools, max_iterations, opts, %{
       on_tool_call: on_tool_call,
       on_tool_result: on_tool_result,
-      iteration: 0
+      iteration: 0,
+      deps: deps,
+      model: model,
+      context: build_initial_context(deps, model, normalized_messages)
     })
   end
 
@@ -234,6 +288,12 @@ defmodule Openrouter.Agent do
 
     case Openrouter.chat(client, messages, chat_opts) do
       {:ok, response} ->
+        # Update context with response data
+        updated_context =
+          state.context
+          |> RunContext.accumulate_usage(response.usage)
+          |> RunContext.add_message(response_to_message(response))
+
         # Check if LLM wants to call tools
         if ToolCall.has_tool_calls?(response) do
           # Execute tools and continue loop
@@ -242,16 +302,17 @@ defmodule Openrouter.Agent do
           # Add assistant's tool call message
           messages = messages ++ [response_to_message(response)]
 
-          # Execute all tool calls
-          case execute_tool_calls(tool_calls, tools, state) do
-            {:ok, results} ->
+          # Execute all tool calls with updated context
+          case execute_tool_calls(tool_calls, tools, %{state | context: updated_context}) do
+            {:ok, results, final_context} ->
               # Add tool result messages
               messages = messages ++ results
 
-              # Continue loop
+              # Continue loop with updated context
               run_loop(client, messages, tools, max_iterations, opts, %{
                 state
-                | iteration: state.iteration + 1
+                | iteration: state.iteration + 1,
+                  context: final_context
               })
 
             {:error, _} = error ->
@@ -268,6 +329,8 @@ defmodule Openrouter.Agent do
   end
 
   defp execute_tool_calls(tool_calls, tools, state) do
+    context = state.context
+
     results =
       Enum.map(tool_calls, fn tool_call ->
         # Find the tool
@@ -281,7 +344,7 @@ defmodule Openrouter.Agent do
         # Parse arguments
         with {:tool, tool} when not is_nil(tool) <- {:tool, tool},
              {:ok, arguments} <- ToolCall.parse_arguments(tool_call),
-             {:ok, result} <- Tool.execute(tool, arguments) do
+             {:ok, result} <- execute_tool_with_context(tool, arguments, context) do
           # Execute callback if provided
           if state.on_tool_result do
             state.on_tool_result.(tool_call, result)
@@ -303,7 +366,16 @@ defmodule Openrouter.Agent do
         end
       end)
 
-    {:ok, results}
+    # Return results and context (context might be updated by future features)
+    {:ok, results, context}
+  end
+
+  defp execute_tool_with_context(tool, arguments, context) do
+    if tool.context_aware do
+      Tool.execute(tool, arguments, context)
+    else
+      Tool.execute(tool, arguments)
+    end
   end
 
   defp find_tool(tools, name) do
@@ -315,6 +387,16 @@ defmodule Openrouter.Agent do
       :assistant,
       response.content,
       tool_calls: response.tool_calls
+    )
+  end
+
+  defp build_initial_context(deps, model, messages) do
+    RunContext.new(
+      deps: deps,
+      model: model,
+      messages: messages,
+      retry_count: 0,
+      usage: nil
     )
   end
 end

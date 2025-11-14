@@ -29,18 +29,47 @@ defmodule Openrouter.Tool do
 
   ## With Dependencies (RunContext)
 
-      # Tool that needs database access
+  Tools can be context-aware, receiving a `RunContext` struct as their first
+  argument. This enables type-safe dependency injection for database connections,
+  user context, and other runtime dependencies.
+
+      # Define your dependencies
+      defmodule AppDeps do
+        defstruct [:db_conn, :customer_id, :user]
+      end
+
+      # Tool that receives RunContext
       balance_tool = Openrouter.Tool.new(
         :get_balance,
         "Get customer account balance",
         fn ctx, %{include_pending: pending} ->
-          # ctx.deps contains your dependencies
-          balance = DB.get_balance(ctx.deps.db, ctx.deps.customer_id, pending)
+          # ctx is a RunContext struct
+          # ctx.deps contains your AppDeps struct
+          balance = DB.get_balance(
+            ctx.deps.db_conn,
+            ctx.deps.customer_id,
+            include_pending: pending
+          )
           {:ok, balance}
         end,
         parameters: %{
           include_pending: [type: :boolean, description: "Include pending transactions"]
-        }
+        },
+        context_aware: true  # Important!
+      )
+
+      # Use with dependencies
+      deps = %AppDeps{
+        db_conn: MyApp.Repo,
+        customer_id: 123,
+        user: current_user
+      }
+
+      {:ok, result} = Openrouter.Agent.run(
+        "What's my balance?",
+        model: "gpt-4",
+        tools: [balance_tool],
+        deps: deps
       )
 
   ## Parameter Types
@@ -83,6 +112,8 @@ defmodule Openrouter.Tool do
         email: [type: :string]
       }
   """
+
+  alias Openrouter.RunContext
 
   @type parameter_type :: :string | :integer | :number | :boolean | :array | :object
   @type parameter_spec :: [
@@ -192,18 +223,36 @@ defmodule Openrouter.Tool do
   @doc """
   Executes a tool with the given arguments.
 
+  For context-aware tools, pass a `RunContext` struct as the third argument.
+  The tool function will receive the RunContext as its first parameter.
+
   Returns `{:ok, result}` on success or `{:error, reason}` on failure.
 
   ## Examples
 
+      # Regular tool
       tool = Openrouter.Tool.new(:add, "Add numbers", fn %{a: a, b: b} ->
         {:ok, a + b}
       end)
 
       {:ok, result} = Openrouter.Tool.execute(tool, %{a: 5, b: 3})
       # => {:ok, 8}
+
+      # Context-aware tool
+      tool = Openrouter.Tool.new(
+        :get_user,
+        "Get user data",
+        fn ctx, %{field: field} ->
+          {:ok, Map.get(ctx.deps.user, field)}
+        end,
+        context_aware: true
+      )
+
+      ctx = RunContext.new(deps: %{user: %{name: "Alice"}})
+      {:ok, name} = Openrouter.Tool.execute(tool, %{field: :name}, ctx)
+      # => {:ok, "Alice"}
   """
-  @spec execute(t(), map(), any()) :: {:ok, any()} | {:error, any()}
+  @spec execute(t(), map(), RunContext.t() | nil) :: {:ok, any()} | {:error, any()}
   def execute(%__MODULE__{} = tool, arguments, context \\ nil) do
     try do
       # Convert string keys to atoms for function arguments
