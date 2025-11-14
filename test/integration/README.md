@@ -117,6 +117,27 @@ mix test test/integration/error_handling_test.exs
 mix test --only error_handling
 ```
 
+### 🛠️ tool_calling_test.exs
+Tests for tool/function calling and agentic workflows.
+
+**Coverage:**
+- Simple tool calling (single and multiple calls)
+- Multiple tools working together
+- Tool execution callbacks (on_tool_call, on_tool_result)
+- Max iterations safety limits
+- Tool parameter types (string, number, boolean, array, object, enum)
+- Conversation with history and context
+- Complex multi-step workflows
+- Conditional tool execution
+- Error handling in tools
+- Agent without tools (fallback to chat)
+
+**Examples:**
+```bash
+mix test test/integration/tool_calling_test.exs
+mix test --only tool_calling
+```
+
 ## Running Tests
 
 ### Prerequisites
@@ -202,6 +223,7 @@ All tests are tagged for selective execution:
 - `:embeddings` - Embedding generation tests
 - `:multimodal` - Multimodal content tests
 - `:error_handling` - Error handling tests
+- `:tool_calling` - Tool/function calling and agentic workflow tests
 
 ### Special Tags
 - `:slow` - Tests that may take longer to execute
@@ -279,13 +301,14 @@ end
 
 Current integration test coverage:
 
-- **950+ tests** across all functionality
+- **1100+ tests** across all functionality
 - **Chat completion**: ~150 tests
 - **Streaming**: ~120 tests
 - **Structured outputs**: ~200 tests
 - **Embeddings**: ~150 tests
 - **Multimodal**: ~180 tests
 - **Error handling**: ~150 tests
+- **Tool calling**: ~150 tests
 
 ## Tips
 
