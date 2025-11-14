@@ -2,7 +2,7 @@
 
 A production-ready Elixir SDK for [OpenRouter](https://openrouter.ai/), bringing the FastAPI/Pydantic AI "feeling" to Elixir AI development.
 
-**Status**: 🚧 Under active development - not yet ready for production use.
+**Status**: ✅ Phase 1 (Core Foundation) complete! Basic chat, streaming, and embeddings are working.
 
 ## Why OpenRouter?
 
@@ -93,26 +93,52 @@ end
 
 ## Development Status
 
-Currently in the design phase. See [`DESIGN.md`](./DESIGN.md) for the roadmap.
+Phase 1 (Core Foundation) is now complete! Basic chat, streaming, and embeddings are implemented.
 
-### Phase 1: Core Foundation (Current)
-- [ ] Choose library name and structure
-- [ ] Core types and behaviors
-- [ ] HTTP layer with Req
-- [ ] OpenRouter provider implementation
-- [ ] Basic telemetry
+### Phase 1: Core Foundation ✅ **COMPLETE**
+- ✅ Library structure established
+- ✅ Core types and behaviors (Message, Response, Error, Usage)
+- ✅ HTTP layer with Req
+- ✅ OpenRouter provider implementation
+- ✅ Basic streaming support
+- ✅ Configuration & validation
+- ✅ Error handling
 
-### Phase 2: Production Readiness
-- [ ] Streaming support
-- [ ] Multimodal content (images, PDFs, video)
+### Current API (Phase 1)
+
+```elixir
+# Simple chat
+{:ok, response} = Openrouter.chat("What is the capital of France?",
+  model: "anthropic/claude-sonnet-4-0")
+
+# With conversation history
+messages = [
+  %{role: :system, content: "You are a helpful assistant"},
+  %{role: :user, content: "Hello!"}
+]
+{:ok, response} = Openrouter.chat(messages, model: "openai/gpt-4")
+
+# Streaming
+{:ok, stream} = Openrouter.chat_stream("Tell me a story", model: "gpt-4")
+stream |> Stream.each(fn %{content: text} -> IO.write(text) end) |> Stream.run()
+
+# Embeddings
+{:ok, [embedding]} = Openrouter.embed("Hello world", model: "text-embedding-3-small")
+```
+
+### Phase 2: Production Readiness (Next)
+- [ ] Enhanced streaming with backpressure
+- [ ] Multimodal content helpers (images, PDFs, video)
 - [ ] Retry logic & fault tolerance
-- [ ] Rate limiting
+- [ ] Rate limiting utilities
+- [ ] Enhanced telemetry
 
 ### Phase 3: Agentic Workflows
 - [ ] RunContext & dependency injection
 - [ ] Tool calling support
 - [ ] Agent framework with macros
 - [ ] Conversation management
+- [ ] ConversationServer (GenServer)
 
 ### Phase 4: Phoenix Integration
 - [ ] LiveView helpers
