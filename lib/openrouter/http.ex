@@ -36,6 +36,21 @@ defmodule Openrouter.HTTP do
     json = Keyword.get(opts, :json)
     timeout = Keyword.get(opts, :timeout, 60_000)
 
+    # Emit telemetry start event
+    start_time = System.monotonic_time()
+
+    metadata = %{
+      method: method,
+      url: url,
+      model: json && json[:model]
+    }
+
+    :telemetry.execute(
+      [:openrouter, :request, :start],
+      %{system_time: System.system_time()},
+      metadata
+    )
+
     request_opts = [
       method: method,
       url: url,
@@ -45,16 +60,48 @@ defmodule Openrouter.HTTP do
 
     request_opts = if json, do: Keyword.put(request_opts, :json, json), else: request_opts
 
-    case Req.request(request_opts) do
-      {:ok, %{status: status, body: body}} when status in 200..299 ->
-        {:ok, body}
+    result =
+      case Req.request(request_opts) do
+        {:ok, %{status: status, body: body}} when status in 200..299 ->
+          {:ok, body}
 
-      {:ok, response} ->
-        {:error, Error.from_http_response(response)}
+        {:ok, response} ->
+          {:error, Error.from_http_response(response)}
 
-      {:error, exception} ->
-        {:error, Error.from_exception(exception)}
+        {:error, exception} ->
+          {:error, Error.from_exception(exception)}
+      end
+
+    # Emit telemetry stop/exception event
+    duration = System.monotonic_time() - start_time
+
+    case result do
+      {:ok, body} ->
+        usage = body["usage"]
+
+        :telemetry.execute(
+          [:openrouter, :request, :stop],
+          %{duration: duration},
+          Map.merge(metadata, %{
+            status: :ok,
+            tokens: usage,
+            model: body["model"]
+          })
+        )
+
+      {:error, error} ->
+        :telemetry.execute(
+          [:openrouter, :request, :exception],
+          %{duration: duration},
+          Map.merge(metadata, %{
+            error_type: error.type,
+            error_message: error.message,
+            status_code: error.status_code
+          })
+        )
     end
+
+    result
   end
 
   @doc """
@@ -85,6 +132,22 @@ defmodule Openrouter.HTTP do
     json = Keyword.get(opts, :json)
     timeout = Keyword.get(opts, :timeout, 60_000)
 
+    # Emit telemetry start event
+    start_time = System.monotonic_time()
+
+    metadata = %{
+      method: :post,
+      url: url,
+      model: json && json[:model],
+      streaming: true
+    }
+
+    :telemetry.execute(
+      [:openrouter, :stream, :start],
+      %{system_time: System.system_time()},
+      metadata
+    )
+
     # Ensure stream parameter is set
     json = if json, do: Map.put(json, :stream, true), else: %{stream: true}
 
@@ -102,38 +165,69 @@ defmodule Openrouter.HTTP do
 
       stream =
         Stream.resource(
-          fn -> response end,
+          fn -> {response, start_time, metadata, 0} end,
           &process_stream_chunk/1,
-          fn _ -> :ok end
+          fn {_response, start_time, metadata, chunk_count} ->
+            # Emit stop event when stream completes
+            duration = System.monotonic_time() - start_time
+
+            :telemetry.execute(
+              [:openrouter, :stream, :stop],
+              %{duration: duration, chunk_count: chunk_count},
+              metadata
+            )
+          end
         )
 
       {:ok, stream}
     rescue
       exception ->
+        duration = System.monotonic_time() - start_time
+
+        :telemetry.execute(
+          [:openrouter, :stream, :exception],
+          %{duration: duration},
+          Map.merge(metadata, %{
+            error: Exception.message(exception)
+          })
+        )
+
         {:error, Error.from_exception(exception)}
     end
   end
 
   # Private helpers
 
-  defp process_stream_chunk(response) do
+  defp process_stream_chunk({response, start_time, metadata, chunk_count}) do
     receive do
       {^response, {:data, data}} ->
         # Parse SSE data
         case parse_sse_event(data) do
-          {:ok, event} -> {[event], response}
-          :done -> {:halt, response}
-          :skip -> {[], response}
+          {:ok, event} ->
+            # Emit chunk event
+            :telemetry.execute(
+              [:openrouter, :stream, :chunk],
+              %{chunk_size: byte_size(data)},
+              metadata
+            )
+
+            {[event], {response, start_time, metadata, chunk_count + 1}}
+
+          :done ->
+            {:halt, {response, start_time, metadata, chunk_count}}
+
+          :skip ->
+            {[], {response, start_time, metadata, chunk_count}}
         end
 
       {^response, :done} ->
-        {:halt, response}
+        {:halt, {response, start_time, metadata, chunk_count}}
 
       {^response, {:error, error}} ->
         raise error
     after
       60_000 ->
-        {:halt, response}
+        {:halt, {response, start_time, metadata, chunk_count}}
     end
   end
 
