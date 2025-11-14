@@ -157,6 +157,29 @@ mix test test/integration/run_context_test.exs
 mix test --only run_context
 ```
 
+### 💬 conversation_test.exs
+Tests for conversation management (stateless and stateful).
+
+**Coverage:**
+- Stateless conversations (Conversation module)
+- Multi-turn conversation context
+- Conversation with tools and agents
+- Conversation persistence (save/load from ETS)
+- Model override per completion
+- Conversation clearing
+- Metadata management
+- Stateful conversations (ConversationServer)
+- GenServer-based state management
+- Multiple independent conversation servers
+- Dynamic model and tool updates
+- Comparison of stateless vs stateful approaches
+
+**Examples:**
+```bash
+mix test test/integration/conversation_test.exs
+mix test --only conversation
+```
+
 ## Running Tests
 
 ### Prerequisites
@@ -244,6 +267,7 @@ All tests are tagged for selective execution:
 - `:error_handling` - Error handling tests
 - `:tool_calling` - Tool/function calling and agentic workflow tests
 - `:run_context` - RunContext and dependency injection tests
+- `:conversation` - Conversation management (stateless and stateful) tests
 
 ### Special Tags
 - `:slow` - Tests that may take longer to execute
@@ -321,7 +345,7 @@ end
 
 Current integration test coverage:
 
-- **1200+ tests** across all functionality
+- **1350+ tests** across all functionality
 - **Chat completion**: ~150 tests
 - **Streaming**: ~120 tests
 - **Structured outputs**: ~200 tests
@@ -330,6 +354,7 @@ Current integration test coverage:
 - **Error handling**: ~150 tests
 - **Tool calling**: ~150 tests
 - **RunContext**: ~100 tests
+- **Conversation**: ~150 tests
 
 ## Tips
 
