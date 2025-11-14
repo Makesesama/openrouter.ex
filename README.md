@@ -2,7 +2,7 @@
 
 A production-ready Elixir SDK for [OpenRouter](https://openrouter.ai/), bringing the FastAPI/Pydantic AI "feeling" to Elixir AI development.
 
-**Status**: ✅ Phase 2 complete! Chat, streaming, embeddings, and **structured outputs with Ecto** are working.
+**Status**: ✅ Phase 3 complete! Production-ready with multimodal content, retry logic, telemetry, and comprehensive tests.
 
 ## Why OpenRouter?
 
@@ -130,9 +130,9 @@ end
 
 ## Development Status
 
-**Phase 2 (Structured Outputs) is now complete!**
+**Phase 3 (Production Features) is now complete!**
 
-This is a major milestone - the library now provides production-ready structured data extraction with Ecto integration, automatic validation, and retry logic.
+This is a major milestone - the library is now production-ready with multimodal content support, exponential backoff retry logic, comprehensive telemetry, and a full test suite.
 
 ### Phase 1: Core Foundation ✅ **COMPLETE**
 - ✅ Library structure established
@@ -152,19 +152,20 @@ This is a major milestone - the library now provides production-ready structured
 - ✅ Support for embedded schemas and complex types
 - ✅ Raw JSON schema support (alternative to Ecto)
 
-### Current API (Phases 1 & 2)
+### Phase 3: Production Features ✅ **COMPLETE**
+- ✅ Multimodal content helpers (images, PDFs, video)
+- ✅ Advanced retry logic with exponential backoff
+- ✅ Comprehensive telemetry events
+- ✅ Content builder module
+- ✅ Production observability
+- ✅ Comprehensive test suite (unit + integration)
+
+### Current API (Phases 1, 2 & 3)
 
 ```elixir
 # Simple chat
 {:ok, response} = Openrouter.chat("What is the capital of France?",
   model: "anthropic/claude-sonnet-4-0")
-
-# With conversation history
-messages = [
-  %{role: :system, content: "You are a helpful assistant"},
-  %{role: :user, content: "Hello!"}
-]
-{:ok, response} = Openrouter.chat(messages, model: "openai/gpt-4")
 
 # Streaming
 {:ok, stream} = Openrouter.chat_stream("Tell me a story", model: "gpt-4")
@@ -173,28 +174,38 @@ stream |> Stream.each(fn %{content: text} -> IO.write(text) end) |> Stream.run()
 # Embeddings
 {:ok, [embedding]} = Openrouter.embed("Hello world", model: "text-embedding-3-small")
 
-# Structured data extraction (NEW!)
+# Structured data extraction
 {:ok, user} = Openrouter.extract(
   "John Doe, age 30, email: john@example.com",
   schema: UserSchema,
   model: "openai/gpt-4"
 )
+
+# Multimodal content
+content = Openrouter.Content.build([
+  text: "What's in this image?",
+  image_url: "https://example.com/image.jpg"
+])
+{:ok, response} = Openrouter.chat([%{role: :user, content: content}],
+  model: "anthropic/claude-3.5-sonnet")
+
+# Retry with exponential backoff
+{:ok, response} = Openrouter.Retry.with_retry(
+  fn -> Openrouter.chat("Hello", model: "gpt-4") end,
+  max_attempts: 5,
+  base_delay: 1000
+)
+
+# Telemetry for monitoring
+Openrouter.Telemetry.attach_default_handler(level: :info)
 ```
 
-### Phase 3: Agentic Workflows (Next)
+### Phase 4: Agentic Workflows (Next)
 - [ ] RunContext & dependency injection
 - [ ] Tool calling support
 - [ ] Agent framework with macros
 - [ ] Conversation management
 - [ ] ConversationServer (GenServer)
-
-### Phase 4: Production Features
-- [ ] Enhanced streaming with backpressure
-- [ ] Multimodal content helpers (images, PDFs, video)
-- [ ] Advanced retry logic & circuit breakers
-- [ ] Rate limiting utilities
-- [ ] Enhanced telemetry events
-- [ ] Content builder helpers
 
 ### Phase 5: Phoenix Integration
 - [ ] LiveView helpers
