@@ -225,7 +225,280 @@ defmodule Openrouter do
     embed([text], [])
   end
 
-  # Private helpers
+  @doc """
+  Extracts structured data from text using an Ecto schema.
+
+  This function uses the LLM to extract structured data and validates it against
+  the provided Ecto schema. If validation fails, it automatically retries with
+  error feedback to the LLM.
+
+  ## Options
+
+    * `:schema` - Ecto schema module to validate against (required if no :json_schema)
+    * `:json_schema` - Raw JSON schema map (alternative to :schema)
+    * `:model` - Model to use (required if not set on client or in config)
+    * `:max_retries` - Maximum number of retry attempts (default: 3)
+    * `:system_prompt` - Custom system prompt for extraction
+    * Other chat options (temperature, max_tokens, etc.)
+
+  ## Examples
+
+      # Using an Ecto schema
+      defmodule UserSchema do
+        use Openrouter.Schema
+
+        embedded_schema do
+          field :name, :string
+          field :age, :integer
+          field :email, :string
+        end
+
+        def changeset(schema, attrs) do
+          schema
+          |> cast(attrs, [:name, :age, :email])
+          |> validate_required([:name, :age])
+          |> validate_format(:email, ~r/@/)
+        end
+      end
+
+      {:ok, user} = Openrouter.extract(
+        "Extract: John Doe is 30 years old, email john@example.com",
+        schema: UserSchema,
+        model: "openai/gpt-4"
+      )
+
+      # Using a raw JSON schema
+      schema = %{
+        type: "object",
+        properties: %{
+          name: %{type: "string"},
+          age: %{type: "integer"}
+        },
+        required: ["name", "age"]
+      }
+
+      {:ok, data} = Openrouter.extract(
+        "John is 25 years old",
+        json_schema: schema,
+        model: "openai/gpt-4"
+      )
+  """
+  @spec extract(client() | String.t(), String.t() | keyword(), keyword()) ::
+          {:ok, struct() | map()} | {:error, Error.t() | Ecto.Changeset.t()}
+  def extract(client_or_prompt, prompt_or_opts \\ [], opts \\ [])
+
+  def extract(%Client{} = client, prompt, opts) when is_binary(prompt) and is_list(opts) do
+    schema_module = opts[:schema]
+    json_schema = opts[:json_schema]
+    max_retries = opts[:max_retries] || 3
+
+    cond do
+      schema_module && Code.ensure_loaded?(schema_module) ->
+        extract_with_ecto_schema(client, prompt, schema_module, opts, max_retries)
+
+      json_schema ->
+        extract_with_json_schema(client, prompt, json_schema, opts, max_retries)
+
+      true ->
+        {:error,
+         Error.new(
+           :validation_error,
+           "Either :schema or :json_schema option is required"
+         )}
+    end
+  end
+
+  def extract(prompt, opts, _) when is_binary(prompt) and is_list(opts) do
+    client = new()
+    extract(client, prompt, opts)
+  end
+
+  # Private helpers for extract
+
+  defp extract_with_ecto_schema(client, prompt, schema_module, opts, max_retries) do
+    # Generate JSON schema from Ecto schema
+    json_schema = Openrouter.Schema.to_json_schema(schema_module)
+
+    # Build extraction prompt
+    system_prompt =
+      opts[:system_prompt] ||
+        """
+        You are a data extraction assistant. Extract the requested information from the text
+        and respond with ONLY a valid JSON object matching the provided schema. Do not include
+        any additional text, explanations, or markdown formatting.
+        """
+
+    messages = [
+      %{role: :system, content: system_prompt},
+      %{role: :user, content: "#{prompt}\n\nSchema: #{Jason.encode!(json_schema)}"}
+    ]
+
+    # Attempt extraction with retries
+    do_extract_with_retries(
+      client,
+      messages,
+      schema_module,
+      opts,
+      max_retries,
+      0
+    )
+  end
+
+  defp extract_with_json_schema(client, prompt, json_schema, opts, max_retries) do
+    system_prompt =
+      opts[:system_prompt] ||
+        """
+        You are a data extraction assistant. Extract the requested information from the text
+        and respond with ONLY a valid JSON object matching the provided schema. Do not include
+        any additional text, explanations, or markdown formatting.
+        """
+
+    messages = [
+      %{role: :system, content: system_prompt},
+      %{role: :user, content: "#{prompt}\n\nSchema: #{Jason.encode!(json_schema)}"}
+    ]
+
+    do_extract_json_with_retries(client, messages, json_schema, opts, max_retries, 0)
+  end
+
+  defp do_extract_with_retries(_client, _messages, _schema_module, _opts, max_retries, attempt)
+       when attempt >= max_retries do
+    {:error,
+     Error.new(
+       :validation_error,
+       "Failed to extract valid data after #{max_retries} attempts"
+     )}
+  end
+
+  defp do_extract_with_retries(client, messages, schema_module, opts, max_retries, attempt) do
+    case chat(client, messages, opts) do
+      {:ok, response} ->
+        # Parse JSON response
+        case parse_json_response(response.content) do
+          {:ok, data} ->
+            # Validate against Ecto schema
+            case Openrouter.Schema.validate(schema_module, data) do
+              {:ok, struct} ->
+                {:ok, struct}
+
+              {:error, changeset} ->
+                # Retry with error feedback
+                error_message = Openrouter.Schema.format_errors(changeset)
+
+                retry_messages =
+                  messages ++
+                    [
+                      %{role: :assistant, content: response.content},
+                      %{
+                        role: :user,
+                        content:
+                          "The previous response had validation errors: #{error_message}. Please provide a corrected response."
+                      }
+                    ]
+
+                do_extract_with_retries(
+                  client,
+                  retry_messages,
+                  schema_module,
+                  opts,
+                  max_retries,
+                  attempt + 1
+                )
+            end
+
+          {:error, _} ->
+            # Retry with JSON parsing error feedback
+            retry_messages =
+              messages ++
+                [
+                  %{role: :assistant, content: response.content},
+                  %{
+                    role: :user,
+                    content:
+                      "The previous response was not valid JSON. Please provide a valid JSON object."
+                  }
+                ]
+
+            do_extract_with_retries(
+              client,
+              retry_messages,
+              schema_module,
+              opts,
+              max_retries,
+              attempt + 1
+            )
+        end
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp do_extract_json_with_retries(_client, _messages, _json_schema, _opts, max_retries, attempt)
+       when attempt >= max_retries do
+    {:error,
+     Error.new(
+       :validation_error,
+       "Failed to extract valid JSON after #{max_retries} attempts"
+     )}
+  end
+
+  defp do_extract_json_with_retries(client, messages, json_schema, opts, max_retries, attempt) do
+    case chat(client, messages, opts) do
+      {:ok, response} ->
+        case parse_json_response(response.content) do
+          {:ok, data} ->
+            # Basic validation against JSON schema
+            # For now, just ensure it's valid JSON
+            # Future: Add proper JSON schema validation
+            {:ok, data}
+
+          {:error, _} ->
+            retry_messages =
+              messages ++
+                [
+                  %{role: :assistant, content: response.content},
+                  %{
+                    role: :user,
+                    content:
+                      "The previous response was not valid JSON. Please provide a valid JSON object matching the schema."
+                  }
+                ]
+
+            do_extract_json_with_retries(
+              client,
+              retry_messages,
+              json_schema,
+              opts,
+              max_retries,
+              attempt + 1
+            )
+        end
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp parse_json_response(content) do
+    # Try to extract JSON from content (handle markdown code blocks)
+    json_str =
+      content
+      |> String.trim()
+      |> extract_json_from_markdown()
+
+    Jason.decode(json_str)
+  end
+
+  defp extract_json_from_markdown(content) do
+    # Remove markdown code blocks if present
+    content
+    |> String.replace(~r/^```json\s*/m, "")
+    |> String.replace(~r/^```\s*/m, "")
+    |> String.trim()
+  end
+
+  # Private helpers for messages
 
   defp normalize_messages(messages) when is_binary(messages) do
     [Message.new(:user, messages)]
