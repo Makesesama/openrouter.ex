@@ -54,11 +54,13 @@ One SDK, all models. No need to build separate clients for each provider.
 - Supervision tree compatible
 
 ### 📊 **Production Features**
+- **Cost Tracking & Budgeting**: Track spending, set budgets, estimate costs
+- **Token Counting**: Estimate tokens and costs before API calls
 - Comprehensive telemetry events
 - Retry logic with exponential backoff
 - Rate limit handling
 - Error types and recovery
-- 1350+ tests (unit + integration)
+- 1400+ tests (unit + integration)
 
 ## Quick Start
 
@@ -343,6 +345,85 @@ Openrouter.Telemetry.attach_default_handler(level: :info)
 )
 ```
 
+### Cost Tracking & Budgeting
+
+Track and control AI spending with built-in cost tracking utilities:
+
+```elixir
+# Enable cost tracking in API requests
+{:ok, response} = Openrouter.chat(
+  "Hello",
+  model: "openai/gpt-4",
+  usage: %{include: true}  # ← Enable cost tracking
+)
+
+# Cost information in response
+IO.puts("Cost: $#{response.usage.total_cost}")
+IO.puts("Tokens: #{response.usage.total_tokens}")
+IO.puts("Native tokens (billing): #{response.usage.native_tokens_prompt + response.usage.native_tokens_completion}")
+```
+
+**Estimate costs before making requests:**
+
+```elixir
+# Estimate token count and cost
+messages = [%{role: :user, content: "Write a poem about Elixir"}]
+
+{:ok, estimate} = Openrouter.TokenCounter.estimate_cost(
+  messages,
+  model: "openai/gpt-4",
+  max_tokens: 500
+)
+
+IO.puts("Estimated cost: $#{estimate.total_cost}")
+IO.puts("Input tokens: #{estimate.input_tokens}")
+IO.puts("Output tokens: #{estimate.output_tokens}")
+```
+
+**Track spending with CostTracker:**
+
+```elixir
+# Start tracker with budget
+{:ok, tracker} = Openrouter.CostTracker.start_link(budget: 50.00)
+
+# Check budget before making requests
+case Openrouter.CostTracker.check_budget(tracker) do
+  :ok ->
+    {:ok, response} = Openrouter.chat("Hello", usage: %{include: true})
+    :ok = Openrouter.CostTracker.track(tracker, response)
+
+  {:warning, remaining} ->
+    Logger.warning("Only $#{remaining} remaining in budget!")
+
+  {:exceeded, amount} ->
+    Logger.error("Budget exceeded by $#{amount}")
+end
+
+# Get usage statistics
+stats = Openrouter.CostTracker.get_stats(tracker)
+IO.puts("Total spent: $#{stats.total_cost}")
+IO.puts("By model: #{inspect(stats.by_model)}")
+IO.puts("By session: #{inspect(stats.by_session)}")
+
+# Generate detailed report
+report = Openrouter.CostTracker.format_report(tracker)
+IO.puts(report)
+```
+
+**Per-session cost tracking:**
+
+```elixir
+{:ok, tracker} = Openrouter.CostTracker.start_link()
+
+# Track costs per conversation
+{:ok, response} = Openrouter.chat("Hello", usage: %{include: true})
+:ok = Openrouter.CostTracker.track(tracker, response, session_id: "conv-123")
+
+# Get session-specific costs
+session_stats = Openrouter.CostTracker.get_session_stats(tracker, "conv-123")
+IO.puts("Conversation cost: $#{session_stats.cost}")
+```
+
 ## Examples
 
 The `examples/` directory contains comprehensive examples:
@@ -354,6 +435,7 @@ The `examples/` directory contains comprehensive examples:
 - **`tool_calling.exs`** - Tool/function calling with agents
 - **`run_context.exs`** - Dependency injection patterns
 - **`conversation.exs`** - Stateless and stateful conversations
+- **`cost_tracking.exs`** - Cost tracking, budgeting, and token estimation
 
 ### Advanced Patterns
 - **`rag.exs`** - RAG (Retrieval Augmented Generation) with vector search
@@ -364,6 +446,7 @@ The `examples/` directory contains comprehensive examples:
 Run with:
 ```bash
 mix run examples/basic_usage.exs
+mix run examples/cost_tracking.exs
 mix run examples/rag.exs
 mix run examples/phoenix_liveview.exs
 ```
@@ -549,8 +632,8 @@ Contributions are welcome! Please:
 ## Roadmap
 
 - [x] More examples (RAG, web search, multi-agent, Phoenix LiveView)
-- [ ] Cost tracking and budgeting
-- [ ] Token counting utilities
+- [x] Cost tracking and budgeting
+- [x] Token counting utilities
 - [ ] Prompt template management
 - [ ] Additional persistence backends (Postgres, Mnesia)
 - [ ] Performance benchmarks
