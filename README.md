@@ -165,6 +165,53 @@ IO.inspect(recipe.ingredients)
 - ✅ Retries with error feedback if validation fails
 - ✅ Returns a properly typed struct
 
+**Nested schemas with `embeds_one` and `embeds_many`:**
+
+```elixir
+defmodule AddressSchema do
+  use Openrouter.Schema
+
+  embedded_schema do
+    field :street, :string
+    field :city, :string
+    field :country, :string
+  end
+
+  def changeset(schema, attrs) do
+    schema
+    |> cast(attrs, [:street, :city, :country])
+    |> validate_required([:city, :country])
+  end
+end
+
+defmodule PersonSchema do
+  use Openrouter.Schema
+
+  embedded_schema do
+    field :name, :string
+    field :age, :integer
+    embeds_one :address, AddressSchema  # Single nested object
+    embeds_many :phone_numbers, PhoneSchema  # Array of objects
+  end
+
+  def changeset(schema, attrs) do
+    schema
+    |> cast(attrs, [:name, :age])
+    |> cast_embed(:address)
+    |> cast_embed(:phone_numbers)
+    |> validate_required([:name])
+  end
+end
+
+{:ok, person} = Openrouter.extract(
+  "John Doe, 30 years old, lives at 123 Main St, New York, USA",
+  schema: PersonSchema,
+  model: "openai/gpt-4"
+)
+
+IO.puts(person.address.city)  # "New York"
+```
+
 ### Tool Calling & Agentic Workflows
 
 Define tools that LLMs can call:
@@ -431,6 +478,7 @@ The `examples/` directory contains comprehensive examples:
 ### Core Features
 - **`basic_usage.exs`** - Chat, streaming, embeddings
 - **`structured_outputs.exs`** - Data extraction with Ecto schemas
+- **`nested_schemas.exs`** - Complex nested data structures (embeds_one, embeds_many)
 - **`production_features.exs`** - Multimodal, retry, telemetry
 - **`tool_calling.exs`** - Tool/function calling with agents
 - **`run_context.exs`** - Dependency injection patterns
