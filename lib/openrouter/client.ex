@@ -95,8 +95,7 @@ defmodule Openrouter.Client do
   defp build_openrouter_config(opts, app_config) do
     %{
       api_key: get_config_value(opts, app_config, :api_key),
-      base_url:
-        get_config_value(opts, app_config, :base_url, "https://openrouter.ai/api/v1"),
+      base_url: get_config_value(opts, app_config, :base_url, "https://openrouter.ai/api/v1"),
       app_name: get_config_value(opts, app_config, :app_name),
       site_url: get_config_value(opts, app_config, :site_url),
       default_model: get_config_value(opts, app_config, :default_model)

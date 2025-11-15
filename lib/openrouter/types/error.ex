@@ -75,7 +75,11 @@ defmodule Openrouter.Types.Error do
   defp status_to_type(_), do: :unknown
 
   defp extract_message(body) when is_map(body) do
-    body["error"]["message"] || body["error"] || body["message"] || "Unknown error"
+    case body["error"] do
+      error when is_map(error) -> error["message"] || "Unknown error"
+      error when is_binary(error) -> error
+      _ -> body["message"] || "Unknown error"
+    end
   end
 
   defp extract_message(body) when is_binary(body), do: body

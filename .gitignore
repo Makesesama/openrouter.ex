@@ -1,5 +1,8 @@
+.env.dev
 .direnv
 .nix-mix
+.nix-hex
+.pre-commit-config.yaml
 # The directory Mix will write compiled artifacts to.
 /_build/
 

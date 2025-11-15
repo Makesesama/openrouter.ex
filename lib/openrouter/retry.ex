@@ -44,7 +44,7 @@ defmodule Openrouter.Retry do
 
   @default_max_attempts 3
   @default_base_delay 1000
-  @default_max_delay 32000
+  @default_max_delay 32_000
 
   @doc """
   Executes a function with automatic retry on failures.
@@ -72,7 +72,7 @@ defmodule Openrouter.Retry do
         retry_on: [:rate_limit, :server_error]
       )
   """
-  @spec with_retry((() -> {:ok, any()} | {:error, Error.t()}), retry_opts()) ::
+  @spec with_retry((-> {:ok, any()} | {:error, Error.t()}), retry_opts()) ::
           {:ok, any()} | {:error, Error.t()}
   def with_retry(fun, opts \\ []) when is_function(fun, 0) do
     max_attempts = Keyword.get(opts, :max_attempts, @default_max_attempts)
@@ -135,8 +135,7 @@ defmodule Openrouter.Retry do
 
   defp do_retry(_fun, max_attempts, _base_delay, _max_delay, _retry_on, _jitter, attempt)
        when attempt > max_attempts do
-    {:error,
-     Error.new(:timeout, "Maximum retry attempts (#{max_attempts}) exceeded")}
+    {:error, Error.new(:timeout, "Maximum retry attempts (#{max_attempts}) exceeded")}
   end
 
   defp do_retry(fun, max_attempts, base_delay, max_delay, retry_on, jitter, attempt) do
@@ -145,39 +144,47 @@ defmodule Openrouter.Retry do
         success
 
       {:error, %Error{} = error} = failure ->
-        if retryable?(error, retry_on) and attempt < max_attempts do
-          # Calculate delay
-          delay = exponential_backoff(attempt, base_delay, max_delay, jitter)
+        should_retry = retryable?(error, retry_on) and attempt < max_attempts
 
-          # Log retry attempt
-          Logger.warning(
-            "Request failed with #{error.type}, retrying in #{delay}ms (attempt #{attempt}/#{max_attempts})"
-          )
+        case should_retry do
+          true ->
+            # Calculate delay
+            delay = exponential_backoff(attempt, base_delay, max_delay, jitter)
 
-          # Wait before retry (respect retry_after if provided)
-          actual_delay =
-            if error.retry_after do
-              error.retry_after * 1000
-            else
-              delay
-            end
+            # Log retry attempt
+            Logger.warning(
+              "Request failed with #{error.type}, retrying in #{delay}ms (attempt #{attempt}/#{max_attempts})"
+            )
 
-          Process.sleep(actual_delay)
+            # Wait before retry (respect retry_after if provided)
+            actual_delay = calculate_actual_delay(error, delay)
+            Process.sleep(actual_delay)
 
-          # Retry
-          do_retry(fun, max_attempts, base_delay, max_delay, retry_on, jitter, attempt + 1)
-        else
-          # Error is not retryable or max attempts reached
-          if attempt >= max_attempts do
-            Logger.error("Request failed after #{max_attempts} attempts: #{error.message}")
-          end
+            # Retry
+            do_retry(fun, max_attempts, base_delay, max_delay, retry_on, jitter, attempt + 1)
 
-          failure
+          false ->
+            # Error is not retryable or max attempts reached
+            log_final_error(attempt, max_attempts, error)
+            failure
         end
 
       other ->
         # Unexpected return value
         other
+    end
+  end
+
+  defp calculate_actual_delay(error, delay) do
+    case error.retry_after do
+      nil -> delay
+      retry_after -> trunc(retry_after * 1000)
+    end
+  end
+
+  defp log_final_error(attempt, max_attempts, error) do
+    if attempt >= max_attempts do
+      Logger.error("Request failed after #{max_attempts} attempts: #{error.message}")
     end
   end
 

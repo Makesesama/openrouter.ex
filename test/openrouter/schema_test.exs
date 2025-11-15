@@ -7,9 +7,9 @@ defmodule Openrouter.SchemaTest do
         use Openrouter.Schema
 
         embedded_schema do
-          field :name, :string
-          field :age, :integer
-          field :active, :boolean
+          field(:name, :string)
+          field(:age, :integer)
+          field(:active, :boolean)
         end
       end
 
@@ -26,8 +26,8 @@ defmodule Openrouter.SchemaTest do
         use Openrouter.Schema
 
         embedded_schema do
-          field :tags, {:array, :string}
-          field :scores, {:array, :integer}
+          field(:tags, {:array, :string})
+          field(:scores, {:array, :integer})
         end
       end
 
@@ -42,9 +42,9 @@ defmodule Openrouter.SchemaTest do
         use Openrouter.Schema
 
         embedded_schema do
-          field :price, :float
-          field :created_at, :utc_datetime
-          field :metadata, :map
+          field(:price, :float)
+          field(:created_at, :utc_datetime)
+          field(:metadata, :map)
         end
       end
 
@@ -61,9 +61,9 @@ defmodule Openrouter.SchemaTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :name, :string
-        field :age, :integer
-        field :email, :string
+        field(:name, :string)
+        field(:age, :integer)
+        field(:email, :string)
       end
 
       def changeset(schema, attrs) do
@@ -126,8 +126,8 @@ defmodule Openrouter.SchemaTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :name, :string
-        field :age, :integer
+        field(:name, :string)
+        field(:age, :integer)
       end
 
       def changeset(schema, attrs) do
@@ -154,9 +154,9 @@ defmodule Openrouter.SchemaTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :street, :string
-        field :city, :string
-        field :zip_code, :string
+        field(:street, :string)
+        field(:city, :string)
+        field(:zip_code, :string)
       end
 
       def changeset(schema, attrs) do
@@ -170,9 +170,9 @@ defmodule Openrouter.SchemaTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :name, :string
-        field :age, :integer
-        embeds_one :address, AddressSchema
+        field(:name, :string)
+        field(:age, :integer)
+        embeds_one(:address, AddressSchema)
       end
 
       def changeset(schema, attrs) do
@@ -234,8 +234,8 @@ defmodule Openrouter.SchemaTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :type, :string
-        field :number, :string
+        field(:type, :string)
+        field(:number, :string)
       end
 
       def changeset(schema, attrs) do
@@ -249,8 +249,8 @@ defmodule Openrouter.SchemaTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :name, :string
-        embeds_many :phones, PhoneSchema
+        field(:name, :string)
+        embeds_many(:phones, PhoneSchema)
       end
 
       def changeset(schema, attrs) do
@@ -311,8 +311,8 @@ defmodule Openrouter.SchemaTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :name, :string
-        field :title, :string
+        field(:name, :string)
+        field(:title, :string)
       end
 
       def changeset(schema, attrs) do
@@ -326,8 +326,8 @@ defmodule Openrouter.SchemaTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :name, :string
-        embeds_many :employees, EmployeeSchema
+        field(:name, :string)
+        embeds_many(:employees, EmployeeSchema)
       end
 
       def changeset(schema, attrs) do
@@ -342,8 +342,8 @@ defmodule Openrouter.SchemaTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :name, :string
-        embeds_many :departments, DepartmentSchema
+        field(:name, :string)
+        embeds_many(:departments, DepartmentSchema)
       end
 
       def changeset(schema, attrs) do
@@ -407,8 +407,8 @@ defmodule Openrouter.SchemaTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :name, :string
-        field :price, :float
+        field(:name, :string)
+        field(:price, :float)
       end
 
       def changeset(schema, attrs) do
@@ -422,8 +422,8 @@ defmodule Openrouter.SchemaTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :address, :string
-        field :method, :string
+        field(:address, :string)
+        field(:method, :string)
       end
 
       def changeset(schema, attrs) do
@@ -437,10 +437,10 @@ defmodule Openrouter.SchemaTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :order_id, :string
-        embeds_many :products, ProductSchema
-        embeds_one :shipping, ShippingSchema
-        field :tags, {:array, :string}
+        field(:order_id, :string)
+        embeds_many(:products, ProductSchema)
+        embeds_one(:shipping, ShippingSchema)
+        field(:tags, {:array, :string})
       end
 
       def changeset(schema, attrs) do

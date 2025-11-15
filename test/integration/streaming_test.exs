@@ -1,16 +1,8 @@
 defmodule Openrouter.Integration.StreamingTest do
-  use ExUnit.Case
+  use Reqord.Case
 
   @moduletag :integration
   @moduletag :streaming
-
-  setup do
-    unless System.get_env("OPENROUTER_API_KEY") || System.get_env("REQORD_MODE") == "replay" do
-      ExUnit.configure(exclude: [:integration])
-    end
-
-    :ok
-  end
 
   describe "basic streaming" do
     @tag :integration
@@ -32,7 +24,7 @@ defmodule Openrouter.Integration.StreamingTest do
       assert String.length(content) > 0
     end
 
-    @tag :integration
+    @tag :skip_reqord
     test "stream includes content chunks" do
       {:ok, stream} =
         Openrouter.chat_stream(
@@ -51,7 +43,7 @@ defmodule Openrouter.Integration.StreamingTest do
       end)
     end
 
-    @tag :integration
+    @tag :skip_reqord
     test "stream ends with done event" do
       {:ok, stream} =
         Openrouter.chat_stream(
@@ -68,7 +60,7 @@ defmodule Openrouter.Integration.StreamingTest do
   end
 
   describe "streaming with parameters" do
-    @tag :integration
+    @tag :skip_reqord
     test "respects temperature in streaming" do
       {:ok, stream} =
         Openrouter.chat_stream(
@@ -83,7 +75,7 @@ defmodule Openrouter.Integration.StreamingTest do
       assert length(content_chunks) > 0
     end
 
-    @tag :integration
+    @tag :skip_reqord
     test "respects max_tokens in streaming" do
       {:ok, stream} =
         Openrouter.chat_stream(
@@ -98,10 +90,7 @@ defmodule Openrouter.Integration.StreamingTest do
       # Should have chunks but limited by max_tokens
       assert length(content_chunks) > 0
 
-      total_content =
-        content_chunks
-        |> Enum.map(& &1[:content])
-        |> Enum.join("")
+      total_content = Enum.map_join(content_chunks, "", & &1[:content])
 
       # Rough check that it's limited
       word_count = length(String.split(total_content))
@@ -110,7 +99,7 @@ defmodule Openrouter.Integration.StreamingTest do
   end
 
   describe "streaming with conversation history" do
-    @tag :integration
+    @tag :skip_reqord
     test "streams with conversation context" do
       messages = [
         %{role: :user, content: "My favorite color is blue"},
@@ -123,17 +112,14 @@ defmodule Openrouter.Integration.StreamingTest do
       events = Enum.to_list(stream)
       content_chunks = Enum.filter(events, &(&1[:type] == :content))
 
-      full_response =
-        content_chunks
-        |> Enum.map(& &1[:content])
-        |> Enum.join("")
+      full_response = Enum.map_join(content_chunks, "", & &1[:content])
 
       assert full_response =~ ~r/blue/i
     end
   end
 
   describe "stream event types" do
-    @tag :integration
+    @tag :skip_reqord
     test "emits proper event structure" do
       {:ok, stream} =
         Openrouter.chat_stream(
@@ -161,7 +147,7 @@ defmodule Openrouter.Integration.StreamingTest do
   end
 
   describe "stream processing" do
-    @tag :integration
+    @tag :skip_reqord
     test "can be processed with Stream functions" do
       {:ok, stream} =
         Openrouter.chat_stream(
@@ -180,7 +166,7 @@ defmodule Openrouter.Integration.StreamingTest do
       assert length(result) > 0
     end
 
-    @tag :integration
+    @tag :skip_reqord
     test "can accumulate streamed content" do
       {:ok, stream} =
         Openrouter.chat_stream(
@@ -210,7 +196,7 @@ defmodule Openrouter.Integration.StreamingTest do
   end
 
   describe "streaming with client" do
-    @tag :integration
+    @tag :skip_reqord
     test "uses client configuration for streaming" do
       client = Openrouter.new(model: "openai/gpt-3.5-turbo")
 

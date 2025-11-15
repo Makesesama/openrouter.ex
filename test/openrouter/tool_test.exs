@@ -535,47 +535,76 @@ defmodule Openrouter.ToolTest do
 
   describe "Tool.validate_arguments/2" do
     test "validates all required parameters are present" do
-      params = %{
-        name: [type: :string, required: true],
-        age: [type: :integer, required: true]
-      }
+      tool =
+        Tool.new(
+          :test_tool,
+          "Test tool",
+          fn args -> {:ok, args} end,
+          parameters: %{
+            name: [type: :string, required: true],
+            age: [type: :integer, required: true]
+          }
+        )
 
-      assert :ok = Tool.validate_arguments(%{name: "Alice", age: 30}, params)
+      assert :ok = Tool.validate_arguments(tool, %{name: "Alice", age: 30})
 
-      assert {:error, error} = Tool.validate_arguments(%{name: "Alice"}, params)
+      assert {:error, error} = Tool.validate_arguments(tool, %{name: "Alice"})
       assert error =~ "age"
     end
 
     test "allows optional parameters to be missing" do
-      params = %{
-        name: [type: :string, required: true],
-        email: [type: :string, required: false]
-      }
+      tool =
+        Tool.new(
+          :test_tool,
+          "Test tool",
+          fn args -> {:ok, args} end,
+          parameters: %{
+            name: [type: :string, required: true],
+            email: [type: :string, required: false]
+          }
+        )
 
-      assert :ok = Tool.validate_arguments(%{name: "Alice"}, params)
-      assert :ok = Tool.validate_arguments(%{name: "Alice", email: "alice@example.com"}, params)
+      assert :ok = Tool.validate_arguments(tool, %{name: "Alice"})
+      assert :ok = Tool.validate_arguments(tool, %{name: "Alice", email: "alice@example.com"})
     end
 
     test "validates type correctness" do
-      params = %{
-        count: [type: :integer, required: true]
-      }
+      tool =
+        Tool.new(
+          :test_tool,
+          "Test tool",
+          fn args -> {:ok, args} end,
+          parameters: %{
+            count: [type: :integer, required: true]
+          }
+        )
 
-      assert :ok = Tool.validate_arguments(%{count: 42}, params)
-      assert {:error, _} = Tool.validate_arguments(%{count: "42"}, params)
+      assert :ok = Tool.validate_arguments(tool, %{count: 42})
+      # Type validation now happens in validate_arguments
+      assert {:error, error} = Tool.validate_arguments(tool, %{count: "42"})
+      assert error =~ "must be an integer"
     end
 
     test "validates enum constraints" do
-      params = %{
-        status: [type: :string, required: true, enum: ["active", "inactive"]]
-      }
+      tool =
+        Tool.new(
+          :test_tool,
+          "Test tool",
+          fn args -> {:ok, args} end,
+          parameters: %{
+            status: [type: :string, required: true, enum: ["active", "inactive"]]
+          }
+        )
 
-      assert :ok = Tool.validate_arguments(%{status: "active"}, params)
-      assert {:error, _} = Tool.validate_arguments(%{status: "pending"}, params)
+      assert :ok = Tool.validate_arguments(tool, %{status: "active"})
+      # Enum validation now happens in validate_arguments
+      assert {:error, error} = Tool.validate_arguments(tool, %{status: "pending"})
+      assert error =~ "must be one of"
     end
 
     test "accepts empty parameters" do
-      assert :ok = Tool.validate_arguments(%{}, %{})
+      tool = Tool.new(:test_tool, "Test tool", fn args -> {:ok, args} end, parameters: %{})
+      assert :ok = Tool.validate_arguments(tool, %{})
     end
   end
 end

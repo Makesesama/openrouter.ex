@@ -2,7 +2,7 @@ defmodule Openrouter.RunContextTest do
   use ExUnit.Case, async: true
 
   alias Openrouter.RunContext
-  alias Openrouter.Types.{Usage, Message}
+  alias Openrouter.Types.{Message, Usage}
 
   describe "RunContext.new/1" do
     test "creates a new context with defaults" do
@@ -19,12 +19,13 @@ defmodule Openrouter.RunContextTest do
       deps = %{user_id: 123, db: :conn}
       messages = [%{role: :user, content: "Hello"}]
 
-      ctx = RunContext.new(
-        deps: deps,
-        messages: messages,
-        model: "gpt-4",
-        retry_count: 2
-      )
+      ctx =
+        RunContext.new(
+          deps: deps,
+          messages: messages,
+          model: "gpt-4",
+          retry_count: 2
+        )
 
       assert ctx.deps == deps
       assert ctx.messages == messages
@@ -43,6 +44,7 @@ defmodule Openrouter.RunContextTest do
   describe "RunContext.add_messages/2" do
     test "adds multiple messages to empty context" do
       ctx = RunContext.new()
+
       messages = [
         %{role: :user, content: "First"},
         %{role: :assistant, content: "Second"}
@@ -366,13 +368,14 @@ defmodule Openrouter.RunContextTest do
       messages = [%{role: :user, content: "Hello"}]
       usage = %Usage{prompt_tokens: 10, completion_tokens: 20, total_tokens: 30}
 
-      ctx = RunContext.new(
-        deps: deps,
-        messages: messages,
-        model: "gpt-4",
-        retry_count: 2,
-        usage: usage
-      )
+      ctx =
+        RunContext.new(
+          deps: deps,
+          messages: messages,
+          model: "gpt-4",
+          retry_count: 2,
+          usage: usage
+        )
 
       map = RunContext.to_map(ctx)
 

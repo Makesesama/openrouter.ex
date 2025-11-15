@@ -128,7 +128,7 @@ defmodule Openrouter.Cache do
   ## Examples
 
       case Cache.get(cache, "my_key") do
-        {:ok, value} -> IO.puts("Hit: #{inspect(value)}")
+        {:ok, cached_value} -> IO.puts("Hit!")
         :miss -> IO.puts("Miss")
       end
   """
@@ -220,6 +220,7 @@ defmodule Openrouter.Cache do
         temperature: temperature,
         max_tokens: max_tokens
       }
+
       hash = :crypto.hash(:sha256, :erlang.term_to_binary(params)) |> Base.encode16()
       "chat:#{model}:t#{temperature}:#{hash}"
     end
@@ -351,10 +352,7 @@ defmodule Openrouter.Cache do
           {:reply, :miss, %{state | storage: new_storage, stats: new_stats}}
         else
           # Valid entry, update access stats
-          updated_entry = %{entry |
-            access_count: entry.access_count + 1,
-            last_accessed: now
-          }
+          updated_entry = %{entry | access_count: entry.access_count + 1, last_accessed: now}
           new_storage = store_in_storage(state.storage, key, updated_entry, state.backend)
           new_stats = update_stats(state.stats, :hit)
           {:reply, {:ok, entry.value}, %{state | storage: new_storage, stats: new_stats}}
@@ -377,12 +375,14 @@ defmodule Openrouter.Cache do
 
     # Check if we need to evict
     current_size = storage_size(state.storage, state.backend)
-    {new_storage, new_stats} = if current_size >= state.max_size do
-      # Evict based on policy
-      evict_one(state.storage, state.backend, state.eviction_policy, state.stats)
-    else
-      {state.storage, state.stats}
-    end
+
+    {new_storage, new_stats} =
+      if current_size >= state.max_size do
+        # Evict based on policy
+        evict_one(state.storage, state.backend, state.eviction_policy, state.stats)
+      else
+        {state.storage, state.stats}
+      end
 
     final_storage = store_in_storage(new_storage, key, entry, state.backend)
 
@@ -405,20 +405,23 @@ defmodule Openrouter.Cache do
   @impl true
   def handle_call(:stats, _from, state) do
     total_requests = state.stats.hits + state.stats.misses
-    hit_rate = if total_requests > 0 do
-      state.stats.hits / total_requests
-    else
-      0.0
-    end
+
+    hit_rate =
+      if total_requests > 0 do
+        state.stats.hits / total_requests
+      else
+        0.0
+      end
 
     size = storage_size(state.storage, state.backend)
     memory = estimate_memory(state.storage, state.backend)
 
-    stats = Map.merge(state.stats, %{
-      hit_rate: hit_rate,
-      size: size,
-      memory_bytes: memory
-    })
+    stats =
+      Map.merge(state.stats, %{
+        hit_rate: hit_rate,
+        size: size,
+        memory_bytes: memory
+      })
 
     {:reply, stats, state}
   end
@@ -439,36 +442,36 @@ defmodule Openrouter.Cache do
     %{}
   end
 
-  defp fetch_from_storage(ets_table, key, :ets) when is_reference(ets_table) do
+  defp fetch_from_storage(ets_table, key, :ets) do
     case :ets.lookup(ets_table, key) do
       [{^key, entry}] -> entry
       [] -> nil
     end
   end
 
-  defp fetch_from_storage(map, key, :map) when is_map(map) do
+  defp fetch_from_storage(map, key, :map) do
     Map.get(map, key)
   end
 
-  defp store_in_storage(ets_table, key, entry, :ets) when is_reference(ets_table) do
+  defp store_in_storage(ets_table, key, entry, :ets) do
     :ets.insert(ets_table, {key, entry})
     ets_table
   end
 
-  defp store_in_storage(map, key, entry, :map) when is_map(map) do
+  defp store_in_storage(map, key, entry, :map) do
     Map.put(map, key, entry)
   end
 
-  defp delete_from_storage(ets_table, key, :ets) when is_reference(ets_table) do
+  defp delete_from_storage(ets_table, key, :ets) do
     :ets.delete(ets_table, key)
     ets_table
   end
 
-  defp delete_from_storage(map, key, :map) when is_map(map) do
+  defp delete_from_storage(map, key, :map) do
     Map.delete(map, key)
   end
 
-  defp clear_storage(ets_table, :ets) when is_reference(ets_table) do
+  defp clear_storage(ets_table, :ets) do
     :ets.delete_all_objects(ets_table)
     ets_table
   end
@@ -477,24 +480,25 @@ defmodule Openrouter.Cache do
     %{}
   end
 
-  defp storage_size(ets_table, :ets) when is_reference(ets_table) do
+  defp storage_size(ets_table, :ets) do
     :ets.info(ets_table, :size)
   end
 
-  defp storage_size(map, :map) when is_map(map) do
+  defp storage_size(map, :map) do
     map_size(map)
   end
 
-  defp estimate_memory(ets_table, :ets) when is_reference(ets_table) do
+  defp estimate_memory(ets_table, :ets) do
     :ets.info(ets_table, :memory) * :erlang.system_info(:wordsize)
   end
 
-  defp estimate_memory(map, :map) when is_map(map) do
+  defp estimate_memory(map, :map) do
     # Rough estimate for map memory usage
     byte_size(:erlang.term_to_binary(map))
   end
 
   defp expired?(%{ttl: :infinity}, _now), do: false
+
   defp expired?(%{inserted_at: inserted_at, ttl: ttl}, now) do
     now > inserted_at + ttl
   end
@@ -513,22 +517,13 @@ defmodule Openrouter.Cache do
 
   defp evict_one(ets_table, :ets, :lru, stats) do
     # Find entry with oldest last_accessed time
-    victim = :ets.foldl(fn {key, entry}, acc ->
-      case acc do
-        nil -> {key, entry}
-        {_acc_key, acc_entry} ->
-          if entry.last_accessed < acc_entry.last_accessed do
-            {key, entry}
-          else
-            acc
-          end
-      end
-    end, nil, ets_table)
+    victim = :ets.foldl(&select_victim_by_field(&1, &2, :last_accessed), nil, ets_table)
 
     case victim do
       {key, _entry} ->
         :ets.delete(ets_table, key)
         {ets_table, update_stats(stats, :eviction)}
+
       nil ->
         {ets_table, stats}
     end
@@ -541,6 +536,7 @@ defmodule Openrouter.Cache do
     case victim do
       {key, _entry} ->
         {Map.delete(map, key), update_stats(stats, :eviction)}
+
       nil ->
         {map, stats}
     end
@@ -552,35 +548,57 @@ defmodule Openrouter.Cache do
   end
 
   defp evict_by_field(ets_table, :ets, field, stats) do
-    victim = :ets.foldl(fn {key, entry}, acc ->
-      case acc do
-        nil -> {key, entry}
-        {_acc_key, acc_entry} ->
-          if Map.get(entry, field) < Map.get(acc_entry, field) do
-            {key, entry}
-          else
-            acc
-          end
-      end
-    end, nil, ets_table)
+    victim = :ets.foldl(&select_victim_by_field(&1, &2, field), nil, ets_table)
 
     case victim do
       {key, _entry} ->
         :ets.delete(ets_table, key)
         {ets_table, update_stats(stats, :eviction)}
+
       nil ->
         {ets_table, stats}
     end
   end
 
   defp evict_by_field(map, :map, field, stats) when is_map(map) do
-    victim = Enum.min_by(map, fn {_key, entry} -> Map.get(entry, field) end, fn -> nil end)
+    victim =
+      Enum.min_by(map, fn {_key, entry} -> get_field_value(entry, field) end, fn -> nil end)
 
     case victim do
       {key, _entry} ->
         {Map.delete(map, key), update_stats(stats, :eviction)}
+
       nil ->
         {map, stats}
+    end
+  end
+
+  defp select_victim_by_field({key, entry}, acc, field) do
+    case acc do
+      nil ->
+        {key, entry}
+
+      {_acc_key, acc_entry} ->
+        choose_victim_by_field(key, entry, acc, acc_entry, field)
+    end
+  end
+
+  defp choose_victim_by_field(key, entry, acc, acc_entry, field) do
+    entry_value = get_field_value(entry, field)
+    acc_value = get_field_value(acc_entry, field)
+
+    if entry_value < acc_value do
+      {key, entry}
+    else
+      acc
+    end
+  end
+
+  defp get_field_value(entry, field) do
+    case field do
+      :last_accessed -> entry.last_accessed
+      :inserted_at -> entry.inserted_at
+      _ -> Map.get(entry, field)
     end
   end
 end

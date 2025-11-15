@@ -138,10 +138,10 @@ defmodule Openrouter.ContentTest do
   describe "build/2" do
     test "builds content array from keyword list" do
       result =
-        Content.build([
+        Content.build(
           text: "Hello",
           image_url: "https://example.com/image.jpg"
-        ])
+        )
 
       assert length(result) == 2
       assert Enum.at(result, 0) == %{type: :text, text: "Hello"}
@@ -170,12 +170,12 @@ defmodule Openrouter.ContentTest do
 
     test "builds complex multimodal content" do
       result =
-        Content.build([
+        Content.build(
           text: "Compare these",
           image_url: "https://example.com/img1.jpg",
           image_url: "https://example.com/img2.jpg",
           pdf: "https://example.com/doc.pdf"
-        ])
+        )
 
       assert length(result) == 4
       assert Enum.at(result, 0)[:type] == :text
@@ -186,7 +186,7 @@ defmodule Openrouter.ContentTest do
 
     test "raises on unknown content type" do
       assert_raise ArgumentError, ~r/Unknown content type/, fn ->
-        Content.build([unknown: "value"])
+        Content.build(unknown: "value")
       end
     end
   end

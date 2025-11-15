@@ -12,7 +12,15 @@ defmodule Openrouter.MixProject do
       package: package(),
       docs: docs(),
       name: "Openrouter",
-      source_url: "https://github.com/Makesesama/openrouter.ex"
+      source_url: "https://github.com/Makesesama/openrouter.ex",
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.json": :test
+      ]
     ]
   end
 
@@ -65,7 +73,9 @@ defmodule Openrouter.MixProject do
       # Development and testing
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:excoveralls, "~> 0.18", only: :test, runtime: false},
+      {:reqord, "~> 0.4.0", only: [:dev, :test], runtime: false}
     ]
   end
 end

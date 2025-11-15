@@ -36,7 +36,7 @@ defmodule Openrouter.Provider do
       client = Openrouter.new(provider: MyApp.CustomProvider)
   """
 
-  alias Openrouter.Types.{Message, Response, Error}
+  alias Openrouter.Types.{Error, Message, Response}
 
   @type config :: map()
   @type params :: map()

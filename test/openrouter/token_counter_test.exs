@@ -81,10 +81,11 @@ defmodule Openrouter.TokenCounterTest do
     test "estimates cost for known model" do
       messages = [%{role: :user, content: "Hello, world!"}]
 
-      {:ok, estimate} = TokenCounter.estimate_cost(messages,
-        model: "openai/gpt-3.5-turbo",
-        max_tokens: 100
-      )
+      {:ok, estimate} =
+        TokenCounter.estimate_cost(messages,
+          model: "openai/gpt-3.5-turbo",
+          max_tokens: 100
+        )
 
       assert estimate.model == "openai/gpt-3.5-turbo"
       assert estimate.input_tokens > 0
@@ -97,9 +98,10 @@ defmodule Openrouter.TokenCounterTest do
     test "estimates cost with default max_tokens" do
       messages = [%{role: :user, content: "Test"}]
 
-      {:ok, estimate} = TokenCounter.estimate_cost(messages,
-        model: "openai/gpt-4"
-      )
+      {:ok, estimate} =
+        TokenCounter.estimate_cost(messages,
+          model: "openai/gpt-4"
+        )
 
       assert estimate.output_tokens == 500
     end
@@ -123,9 +125,10 @@ defmodule Openrouter.TokenCounterTest do
     test "returns error for unknown model" do
       messages = [%{role: :user, content: "Test"}]
 
-      assert {:error, :model_not_found} = TokenCounter.estimate_cost(messages,
-        model: "unknown/model"
-      )
+      assert {:error, :model_not_found} =
+               TokenCounter.estimate_cost(messages,
+                 model: "unknown/model"
+               )
     end
 
     test "uses custom pricing when provided" do
@@ -136,11 +139,12 @@ defmodule Openrouter.TokenCounterTest do
         completion: 20.0
       }
 
-      {:ok, estimate} = TokenCounter.estimate_cost(messages,
-        model: "any/model",
-        max_tokens: 100,
-        pricing: custom_pricing
-      )
+      {:ok, estimate} =
+        TokenCounter.estimate_cost(messages,
+          model: "any/model",
+          max_tokens: 100,
+          pricing: custom_pricing
+        )
 
       # Should use custom pricing instead of failing
       assert estimate.total_cost > 0
@@ -149,15 +153,17 @@ defmodule Openrouter.TokenCounterTest do
     test "estimates higher costs for GPT-4 than GPT-3.5" do
       messages = [%{role: :user, content: "Test message"}]
 
-      {:ok, gpt4_estimate} = TokenCounter.estimate_cost(messages,
-        model: "openai/gpt-4",
-        max_tokens: 100
-      )
+      {:ok, gpt4_estimate} =
+        TokenCounter.estimate_cost(messages,
+          model: "openai/gpt-4",
+          max_tokens: 100
+        )
 
-      {:ok, gpt35_estimate} = TokenCounter.estimate_cost(messages,
-        model: "openai/gpt-3.5-turbo",
-        max_tokens: 100
-      )
+      {:ok, gpt35_estimate} =
+        TokenCounter.estimate_cost(messages,
+          model: "openai/gpt-3.5-turbo",
+          max_tokens: 100
+        )
 
       assert gpt4_estimate.total_cost > gpt35_estimate.total_cost
     end
@@ -187,10 +193,11 @@ defmodule Openrouter.TokenCounterTest do
     test "sets custom pricing for a model" do
       model = "custom/test-model-#{:rand.uniform(10000)}"
 
-      :ok = TokenCounter.set_pricing(model, %{
-        prompt: 1.5,
-        completion: 3.0
-      })
+      :ok =
+        TokenCounter.set_pricing(model, %{
+          prompt: 1.5,
+          completion: 3.0
+        })
 
       {:ok, pricing} = TokenCounter.pricing(model)
       assert pricing.prompt == 1.5
@@ -204,10 +211,11 @@ defmodule Openrouter.TokenCounterTest do
       {:ok, original} = TokenCounter.pricing(model)
 
       # Override
-      :ok = TokenCounter.set_pricing(model, %{
-        prompt: 999.0,
-        completion: 999.0
-      })
+      :ok =
+        TokenCounter.set_pricing(model, %{
+          prompt: 999.0,
+          completion: 999.0
+        })
 
       {:ok, custom} = TokenCounter.pricing(model)
       assert custom.prompt == 999.0
@@ -220,17 +228,19 @@ defmodule Openrouter.TokenCounterTest do
     test "custom pricing is used in estimates" do
       model = "custom/test-model-#{:rand.uniform(10000)}"
 
-      :ok = TokenCounter.set_pricing(model, %{
-        prompt: 100.0,
-        completion: 200.0
-      })
+      :ok =
+        TokenCounter.set_pricing(model, %{
+          prompt: 100_000.0,
+          completion: 200_000.0
+        })
 
       messages = [%{role: :user, content: "Test"}]
 
-      {:ok, estimate} = TokenCounter.estimate_cost(messages,
-        model: model,
-        max_tokens: 10
-      )
+      {:ok, estimate} =
+        TokenCounter.estimate_cost(messages,
+          model: model,
+          max_tokens: 10
+        )
 
       # With high pricing, cost should be substantial
       assert estimate.total_cost > 1.0
@@ -267,10 +277,11 @@ defmodule Openrouter.TokenCounterTest do
         %{role: :user, content: "What is 2+2?"}
       ]
 
-      {:ok, estimate} = TokenCounter.estimate_cost(messages,
-        model: "openai/gpt-3.5-turbo",
-        max_tokens: 50
-      )
+      {:ok, estimate} =
+        TokenCounter.estimate_cost(messages,
+          model: "openai/gpt-3.5-turbo",
+          max_tokens: 50
+        )
 
       # Estimates should be reasonable (not off by 10x)
       assert estimate.input_tokens > 0

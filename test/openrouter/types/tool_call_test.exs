@@ -1,7 +1,7 @@
 defmodule Openrouter.Types.ToolCallTest do
   use ExUnit.Case, async: true
 
-  alias Openrouter.Types.{ToolCall, Response}
+  alias Openrouter.Types.{Response, ToolCall}
 
   describe "ToolCall.from_api_format/1" do
     test "creates tool call from API format with string keys" do
@@ -57,9 +57,9 @@ defmodule Openrouter.Types.ToolCallTest do
     test "handles mixed string and atom keys" do
       data = %{
         "id" => "call_mix",
-        type: "function",
+        "type" => "function",
         "function" => %{
-          name: "mixed_tool",
+          "name" => "mixed_tool",
           "arguments" => "{}"
         }
       }

@@ -16,10 +16,12 @@ defmodule Openrouter.CostTrackerTest do
     end
 
     test "starts with custom warning threshold" do
-      assert {:ok, pid} = CostTracker.start_link(
-        budget: 10.00,
-        budget_warning_threshold: 0.9
-      )
+      assert {:ok, pid} =
+               CostTracker.start_link(
+                 budget: 10.00,
+                 budget_warning_threshold: 0.9
+               )
+
       assert Process.alive?(pid)
     end
 
@@ -33,15 +35,16 @@ defmodule Openrouter.CostTrackerTest do
     test "tracks a response with usage data" do
       {:ok, tracker} = CostTracker.start_link()
 
-      response = build_response(
-        model: "openai/gpt-3.5-turbo",
-        usage: %{
-          prompt_tokens: 10,
-          completion_tokens: 20,
-          total_tokens: 30,
-          total_cost: 0.001
-        }
-      )
+      response =
+        build_response(
+          model: "openai/gpt-3.5-turbo",
+          usage: %{
+            prompt_tokens: 10,
+            completion_tokens: 20,
+            total_tokens: 30,
+            total_cost: 0.001
+          }
+        )
 
       assert :ok = CostTracker.track(tracker, response)
 
@@ -62,15 +65,17 @@ defmodule Openrouter.CostTrackerTest do
     test "tracks multiple responses" do
       {:ok, tracker} = CostTracker.start_link()
 
-      response1 = build_response(
-        model: "openai/gpt-4",
-        usage: %{total_tokens: 100, total_cost: 0.01}
-      )
+      response1 =
+        build_response(
+          model: "openai/gpt-4",
+          usage: %{total_tokens: 100, total_cost: 0.01}
+        )
 
-      response2 = build_response(
-        model: "openai/gpt-4",
-        usage: %{total_tokens: 200, total_cost: 0.02}
-      )
+      response2 =
+        build_response(
+          model: "openai/gpt-4",
+          usage: %{total_tokens: 200, total_cost: 0.02}
+        )
 
       :ok = CostTracker.track(tracker, response1)
       :ok = CostTracker.track(tracker, response2)
@@ -85,15 +90,17 @@ defmodule Openrouter.CostTrackerTest do
     test "tracks per-model statistics" do
       {:ok, tracker} = CostTracker.start_link()
 
-      gpt4_response = build_response(
-        model: "openai/gpt-4",
-        usage: %{total_tokens: 100, total_cost: 0.05}
-      )
+      gpt4_response =
+        build_response(
+          model: "openai/gpt-4",
+          usage: %{total_tokens: 100, total_cost: 0.05}
+        )
 
-      gpt35_response = build_response(
-        model: "openai/gpt-3.5-turbo",
-        usage: %{total_tokens: 150, total_cost: 0.01}
-      )
+      gpt35_response =
+        build_response(
+          model: "openai/gpt-3.5-turbo",
+          usage: %{total_tokens: 150, total_cost: 0.01}
+        )
 
       :ok = CostTracker.track(tracker, gpt4_response)
       :ok = CostTracker.track(tracker, gpt35_response)
@@ -112,15 +119,17 @@ defmodule Openrouter.CostTrackerTest do
     test "tracks per-session statistics" do
       {:ok, tracker} = CostTracker.start_link()
 
-      response1 = build_response(
-        model: "openai/gpt-4",
-        usage: %{total_tokens: 100, total_cost: 0.01}
-      )
+      response1 =
+        build_response(
+          model: "openai/gpt-4",
+          usage: %{total_tokens: 100, total_cost: 0.01}
+        )
 
-      response2 = build_response(
-        model: "openai/gpt-4",
-        usage: %{total_tokens: 150, total_cost: 0.015}
-      )
+      response2 =
+        build_response(
+          model: "openai/gpt-4",
+          usage: %{total_tokens: 150, total_cost: 0.015}
+        )
 
       :ok = CostTracker.track(tracker, response1, session_id: "session-1")
       :ok = CostTracker.track(tracker, response2, session_id: "session-1")
@@ -171,10 +180,11 @@ defmodule Openrouter.CostTrackerTest do
     test "returns :ok when no budget set" do
       {:ok, tracker} = CostTracker.start_link()
 
-      response = build_response(
-        model: "openai/gpt-4",
-        usage: %{total_tokens: 100, total_cost: 100.00}
-      )
+      response =
+        build_response(
+          model: "openai/gpt-4",
+          usage: %{total_tokens: 100, total_cost: 100.00}
+        )
 
       :ok = CostTracker.track(tracker, response)
 
@@ -184,10 +194,11 @@ defmodule Openrouter.CostTrackerTest do
     test "returns :ok when within budget" do
       {:ok, tracker} = CostTracker.start_link(budget: 10.00)
 
-      response = build_response(
-        model: "openai/gpt-4",
-        usage: %{total_tokens: 100, total_cost: 1.00}
-      )
+      response =
+        build_response(
+          model: "openai/gpt-4",
+          usage: %{total_tokens: 100, total_cost: 1.00}
+        )
 
       :ok = CostTracker.track(tracker, response)
 
@@ -197,10 +208,11 @@ defmodule Openrouter.CostTrackerTest do
     test "returns {:warning, remaining} when approaching budget" do
       {:ok, tracker} = CostTracker.start_link(budget: 10.00, budget_warning_threshold: 0.8)
 
-      response = build_response(
-        model: "openai/gpt-4",
-        usage: %{total_tokens: 100, total_cost: 8.50}
-      )
+      response =
+        build_response(
+          model: "openai/gpt-4",
+          usage: %{total_tokens: 100, total_cost: 8.50}
+        )
 
       :ok = CostTracker.track(tracker, response)
 
@@ -211,10 +223,11 @@ defmodule Openrouter.CostTrackerTest do
     test "returns {:exceeded, amount} when budget exceeded" do
       {:ok, tracker} = CostTracker.start_link(budget: 10.00)
 
-      response = build_response(
-        model: "openai/gpt-4",
-        usage: %{total_tokens: 100, total_cost: 12.00}
-      )
+      response =
+        build_response(
+          model: "openai/gpt-4",
+          usage: %{total_tokens: 100, total_cost: 12.00}
+        )
 
       :ok = CostTracker.track(tracker, response)
 
@@ -227,10 +240,11 @@ defmodule Openrouter.CostTrackerTest do
     test "resets all tracking data" do
       {:ok, tracker} = CostTracker.start_link(budget: 10.00)
 
-      response = build_response(
-        model: "openai/gpt-4",
-        usage: %{total_tokens: 100, total_cost: 5.00}
-      )
+      response =
+        build_response(
+          model: "openai/gpt-4",
+          usage: %{total_tokens: 100, total_cost: 5.00}
+        )
 
       :ok = CostTracker.track(tracker, response)
 
@@ -276,10 +290,11 @@ defmodule Openrouter.CostTrackerTest do
     test "returns comprehensive statistics" do
       {:ok, tracker} = CostTracker.start_link(budget: 10.00)
 
-      response = build_response(
-        model: "openai/gpt-4",
-        usage: %{total_tokens: 100, total_cost: 0.50}
-      )
+      response =
+        build_response(
+          model: "openai/gpt-4",
+          usage: %{total_tokens: 100, total_cost: 0.50}
+        )
 
       :ok = CostTracker.track(tracker, response, session_id: "session-1")
 
@@ -302,10 +317,11 @@ defmodule Openrouter.CostTrackerTest do
     test "generates human-readable report" do
       {:ok, tracker} = CostTracker.start_link(budget: 10.00)
 
-      response = build_response(
-        model: "openai/gpt-4",
-        usage: %{total_tokens: 100, total_cost: 0.50}
-      )
+      response =
+        build_response(
+          model: "openai/gpt-4",
+          usage: %{total_tokens: 100, total_cost: 0.50}
+        )
 
       :ok = CostTracker.track(tracker, response)
 

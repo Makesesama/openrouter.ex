@@ -219,7 +219,8 @@ defmodule Openrouter.RunContext do
     %{ctx | usage: usage}
   end
 
-  def accumulate_usage(%__MODULE__{usage: existing} = ctx, new_usage) when not is_nil(new_usage) do
+  def accumulate_usage(%__MODULE__{usage: existing} = ctx, new_usage)
+      when not is_nil(new_usage) do
     %{ctx | usage: Usage.add(existing, new_usage)}
   end
 

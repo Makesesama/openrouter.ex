@@ -135,8 +135,8 @@ defmodule Openrouter.Telemetry do
       defmodule MyApp.TelemetryHandler do
         require Logger
 
-        def handle_event([:openrouter, :request, :start], _measurements, metadata, _config) do
-          Logger.debug("Starting request to #{metadata.model}")
+        def handle_event([:openrouter, :request, :start], _measurements, _metadata, _config) do
+          Logger.debug("Starting request")
         end
 
         def handle_event([:openrouter, :request, :stop], measurements, metadata, _config) do
@@ -259,7 +259,7 @@ defmodule Openrouter.Telemetry do
     )
   end
 
-  def handle_event([:openrouter, :request, :exception], measurements, metadata, config) do
+  def handle_event([:openrouter, :request, :exception], measurements, metadata, _config) do
     duration_ms = System.convert_time_unit(measurements.duration, :native, :millisecond)
 
     log(
@@ -287,7 +287,7 @@ defmodule Openrouter.Telemetry do
     )
   end
 
-  def handle_event([:openrouter, :stream, :exception], measurements, metadata, config) do
+  def handle_event([:openrouter, :stream, :exception], measurements, metadata, _config) do
     duration_ms = System.convert_time_unit(measurements.duration, :native, :millisecond)
 
     log(
@@ -300,7 +300,7 @@ defmodule Openrouter.Telemetry do
 
   # Private helpers
 
-  defp log(level, message, metadata \\ []) do
+  defp log(level, message, metadata) do
     Logger.log(level, message, metadata)
   end
 end

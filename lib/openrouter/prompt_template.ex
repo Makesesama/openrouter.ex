@@ -179,10 +179,7 @@ defmodule Openrouter.PromptTemplate do
   def compose(templates, opts \\ []) when is_list(templates) do
     separator = Keyword.get(opts, :separator, "\n")
 
-    combined_template =
-      templates
-      |> Enum.map(& &1.template)
-      |> Enum.join(separator)
+    combined_template = Enum.map_join(templates, separator, & &1.template)
 
     combined_variables =
       templates
@@ -251,8 +248,9 @@ defmodule Openrouter.PromptTemplate do
       var_name
       |> String.trim()
       |> extract_var_name()
-      |> String.to_atom()
     end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&String.to_atom/1)
     |> Enum.uniq()
   end
 
@@ -288,7 +286,7 @@ defmodule Openrouter.PromptTemplate do
     |> Regex.replace(template, fn _, var_name, content ->
       var_atom = String.to_atom(var_name)
 
-      if is_truthy?(Map.get(vars, var_atom)) do
+      if truthy?(Map.get(vars, var_atom)) do
         content
       else
         ""
@@ -306,16 +304,17 @@ defmodule Openrouter.PromptTemplate do
         |> String.to_atom()
 
       case Map.get(vars, var_atom) do
-        nil -> "{{#{var_name}}}"  # Keep placeholder if not found
+        # Keep placeholder if not found
+        nil -> "{{#{var_name}}}"
         value -> to_string(value)
       end
     end)
   end
 
   # Check if a value is truthy
-  defp is_truthy?(nil), do: false
-  defp is_truthy?(false), do: false
-  defp is_truthy?(""), do: false
-  defp is_truthy?([]), do: false
-  defp is_truthy?(_), do: true
+  defp truthy?(nil), do: false
+  defp truthy?(false), do: false
+  defp truthy?(""), do: false
+  defp truthy?([]), do: false
+  defp truthy?(_), do: true
 end

@@ -25,11 +25,13 @@ defmodule Openrouter.CacheTest do
     end
 
     test "starts with custom options" do
-      assert {:ok, cache} = Cache.start_link(
-        max_size: 50,
-        eviction_policy: :fifo,
-        default_ttl: :timer.minutes(30)
-      )
+      assert {:ok, cache} =
+               Cache.start_link(
+                 max_size: 50,
+                 eviction_policy: :fifo,
+                 default_ttl: :timer.minutes(30)
+               )
+
       assert Process.alive?(cache)
     end
   end
@@ -98,11 +100,12 @@ defmodule Openrouter.CacheTest do
       # ETS allows concurrent reads
       Cache.put(cache, "shared", "data")
 
-      tasks = for i <- 1..10 do
-        Task.async(fn ->
-          Cache.get(cache, "shared")
-        end)
-      end
+      tasks =
+        for i <- 1..10 do
+          Task.async(fn ->
+            Cache.get(cache, "shared")
+          end)
+        end
 
       results = Task.await_many(tasks)
 
@@ -162,9 +165,10 @@ defmodule Openrouter.CacheTest do
     end
 
     test "computes value on cache miss", %{cache: cache} do
-      result = Cache.fetch(cache, "key", fn ->
-        "computed"
-      end)
+      result =
+        Cache.fetch(cache, "key", fn ->
+          "computed"
+        end)
 
       assert result == "computed"
       assert {:ok, "computed"} = Cache.get(cache, "key")
@@ -175,9 +179,10 @@ defmodule Openrouter.CacheTest do
       Cache.put(cache, "key", "cached")
 
       # Fetch should return cached value without computing
-      result = Cache.fetch(cache, "key", fn ->
-        raise "Should not compute!"
-      end)
+      result =
+        Cache.fetch(cache, "key", fn ->
+          raise "Should not compute!"
+        end)
 
       assert result == "cached"
     end
@@ -277,8 +282,10 @@ defmodule Openrouter.CacheTest do
 
     test "resets statistics", %{cache: cache} do
       Cache.put(cache, "key", "value")
-      Cache.get(cache, "key")  # hit
-      Cache.get(cache, "other")  # miss
+      # hit
+      Cache.get(cache, "key")
+      # miss
+      Cache.get(cache, "other")
 
       Cache.clear(cache)
 
@@ -415,7 +422,8 @@ defmodule Openrouter.CacheTest do
       Cache.put(cache, "key1", "value1")
       Cache.put(cache, "key2", "value2")
       Cache.put(cache, "key3", "value3")
-      Cache.put(cache, "key4", "value4")  # Evicts key1
+      # Evicts key1
+      Cache.put(cache, "key4", "value4")
 
       stats = Cache.stats(cache)
 
@@ -604,20 +612,18 @@ defmodule Openrouter.CacheTest do
       result = Cache.fetch_embedding(cache, "hello", compute_fn: compute_fn)
 
       assert result == %{embedding: [0.1, 0.2, 0.3]}
-      assert Agent.get(agent, & &1) == 1  # Only called once
+      # Only called once
+      assert Agent.get(agent, & &1) == 1
     end
 
     test "uses infinite TTL by default", %{cache: cache} do
-      Cache.fetch_embedding(cache, "hello",
-        compute_fn: fn -> %{embedding: [1, 2, 3]} end
-      )
+      Cache.fetch_embedding(cache, "hello", compute_fn: fn -> %{embedding: [1, 2, 3]} end)
 
       # Should still be cached after delay
       Process.sleep(100)
 
-      result = Cache.fetch_embedding(cache, "hello",
-        compute_fn: fn -> raise "Should not compute!" end
-      )
+      result =
+        Cache.fetch_embedding(cache, "hello", compute_fn: fn -> raise "Should not compute!" end)
 
       assert result == %{embedding: [1, 2, 3]}
     end
@@ -632,10 +638,11 @@ defmodule Openrouter.CacheTest do
       Process.sleep(100)
 
       # Should recompute
-      result = Cache.fetch_embedding(cache, "temp",
-        compute_fn: fn -> %{embedding: [2]} end,
-        ttl: 50
-      )
+      result =
+        Cache.fetch_embedding(cache, "temp",
+          compute_fn: fn -> %{embedding: [2]} end,
+          ttl: 50
+        )
 
       assert result == %{embedding: [2]}
     end

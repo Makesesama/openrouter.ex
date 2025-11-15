@@ -60,6 +60,14 @@ defmodule Openrouter.HTTP do
 
     request_opts = if json, do: Keyword.put(request_opts, :json, json), else: request_opts
 
+    # Add Req.Test plug for test environment (required for reqord)
+    request_opts =
+      if Application.get_env(:openrouter, :req_options) do
+        Keyword.merge(Application.get_env(:openrouter, :req_options), request_opts)
+      else
+        request_opts
+      end
+
     result =
       case Req.request(request_opts) do
         {:ok, %{status: status, body: body}} when status in 200..299 ->
@@ -160,6 +168,14 @@ defmodule Openrouter.HTTP do
       into: :self
     ]
 
+    # Add Req.Test plug for test environment (required for reqord)
+    request_opts =
+      if Application.get_env(:openrouter, :req_options) do
+        Keyword.merge(Application.get_env(:openrouter, :req_options), request_opts)
+      else
+        request_opts
+      end
+
     try do
       response = Req.request!(request_opts)
 
@@ -236,20 +252,21 @@ defmodule Openrouter.HTTP do
     data
     |> String.trim()
     |> String.split("\n")
-    |> Enum.find_value(:skip, fn line ->
-      case String.trim(line) do
-        "data: [DONE]" ->
-          :done
+    |> Enum.find_value(:skip, &parse_sse_line/1)
+  end
 
-        "data: " <> json_data ->
-          case Jason.decode(json_data) do
-            {:ok, decoded} -> {:ok, decoded}
-            {:error, _} -> :skip
-          end
+  defp parse_sse_line(line) do
+    case String.trim(line) do
+      "data: [DONE]" -> :done
+      "data: " <> json_data -> decode_json_data(json_data)
+      _ -> nil
+    end
+  end
 
-        _ ->
-          nil
-      end
-    end)
+  defp decode_json_data(json_data) do
+    case Jason.decode(json_data) do
+      {:ok, decoded} -> {:ok, decoded}
+      {:error, _} -> :skip
+    end
   end
 end

@@ -58,7 +58,7 @@ defmodule Openrouter.Conversation do
       # conv is unchanged
   """
 
-  alias Openrouter.{Client, RunContext}
+  alias Openrouter.Client
   alias Openrouter.Types.{Message, Response}
 
   @type t :: %__MODULE__{
@@ -274,8 +274,8 @@ defmodule Openrouter.Conversation do
   ## Examples
 
       messages = Openrouter.Conversation.messages(conversation)
-      Enum.each(messages, fn msg ->
-        IO.puts("#{msg.role}: #{msg.content}")
+      Enum.each(messages, fn m ->
+        IO.inspect(m)
       end)
   """
   @spec messages(t()) :: [Message.t() | map()]
@@ -289,7 +289,7 @@ defmodule Openrouter.Conversation do
   ## Examples
 
       count = Openrouter.Conversation.message_count(conversation)
-      IO.puts("Conversation has #{count} messages")
+      IO.puts("Message count: " <> Integer.to_string(count))
   """
   @spec message_count(t()) :: non_neg_integer()
   def message_count(%__MODULE__{} = conversation) do

@@ -234,49 +234,41 @@ defmodule Openrouter.TokenCounter do
   end
 
   defp default_pricing(model) do
-    pricing =
-      case model do
-        # OpenAI models
-        "openai/gpt-4" -> %{prompt: 30.0, completion: 60.0}
-        "openai/gpt-4-turbo" -> %{prompt: 10.0, completion: 30.0}
-        "openai/gpt-3.5-turbo" -> %{prompt: 0.5, completion: 1.5}
-        "openai/gpt-4o" -> %{prompt: 2.5, completion: 10.0}
-        "openai/gpt-4o-mini" -> %{prompt: 0.15, completion: 0.6}
-
-        # Anthropic models
-        "anthropic/claude-3.5-sonnet" -> %{prompt: 3.0, completion: 15.0}
-        "anthropic/claude-3-opus" -> %{prompt: 15.0, completion: 75.0}
-        "anthropic/claude-3-sonnet" -> %{prompt: 3.0, completion: 15.0}
-        "anthropic/claude-3-haiku" -> %{prompt: 0.25, completion: 1.25}
-
-        # Google models
-        "google/gemini-pro" -> %{prompt: 0.5, completion: 1.5}
-        "google/gemini-2.0-flash" -> %{prompt: 0.075, completion: 0.3}
-        "google/gemini-1.5-pro" -> %{prompt: 1.25, completion: 5.0}
-
-        # Meta models
-        "meta-llama/llama-3.3-70b-instruct" -> %{prompt: 0.35, completion: 0.4}
-        "meta-llama/llama-3.1-405b-instruct" -> %{prompt: 2.7, completion: 2.7}
-
-        # Mistral models
-        "mistralai/mistral-large" -> %{prompt: 2.0, completion: 6.0}
-        "mistralai/mistral-medium" -> %{prompt: 2.7, completion: 8.1}
-        "mistralai/mistral-small" -> %{prompt: 0.2, completion: 0.6}
-
-        # Cohere models
-        "cohere/command-r-plus" -> %{prompt: 2.5, completion: 10.0}
-        "cohere/command-r" -> %{prompt: 0.15, completion: 0.6}
-
-        # DeepSeek models
-        "deepseek/deepseek-chat" -> %{prompt: 0.14, completion: 0.28}
-
-        _ -> nil
-      end
-
-    if pricing do
-      {:ok, pricing}
-    else
-      {:error, :model_not_found}
+    case Map.get(pricing_table(), model) do
+      nil -> {:error, :model_not_found}
+      pricing -> {:ok, pricing}
     end
+  end
+
+  defp pricing_table do
+    %{
+      # OpenAI models
+      "openai/gpt-4" => %{prompt: 30.0, completion: 60.0},
+      "openai/gpt-4-turbo" => %{prompt: 10.0, completion: 30.0},
+      "openai/gpt-3.5-turbo" => %{prompt: 0.5, completion: 1.5},
+      "openai/gpt-4o" => %{prompt: 2.5, completion: 10.0},
+      "openai/gpt-4o-mini" => %{prompt: 0.15, completion: 0.6},
+      # Anthropic models
+      "anthropic/claude-3.5-sonnet" => %{prompt: 3.0, completion: 15.0},
+      "anthropic/claude-3-opus" => %{prompt: 15.0, completion: 75.0},
+      "anthropic/claude-3-sonnet" => %{prompt: 3.0, completion: 15.0},
+      "anthropic/claude-3-haiku" => %{prompt: 0.25, completion: 1.25},
+      # Google models
+      "google/gemini-pro" => %{prompt: 0.5, completion: 1.5},
+      "google/gemini-2.0-flash" => %{prompt: 0.075, completion: 0.3},
+      "google/gemini-1.5-pro" => %{prompt: 1.25, completion: 5.0},
+      # Meta models
+      "meta-llama/llama-3.3-70b-instruct" => %{prompt: 0.35, completion: 0.4},
+      "meta-llama/llama-3.1-405b-instruct" => %{prompt: 2.7, completion: 2.7},
+      # Mistral models
+      "mistralai/mistral-large" => %{prompt: 2.0, completion: 6.0},
+      "mistralai/mistral-medium" => %{prompt: 2.7, completion: 8.1},
+      "mistralai/mistral-small" => %{prompt: 0.2, completion: 0.6},
+      # Cohere models
+      "cohere/command-r-plus" => %{prompt: 2.5, completion: 10.0},
+      "cohere/command-r" => %{prompt: 0.15, completion: 0.6},
+      # DeepSeek models
+      "deepseek/deepseek-chat" => %{prompt: 0.14, completion: 0.28}
+    }
   end
 end

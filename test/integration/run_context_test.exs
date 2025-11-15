@@ -1,18 +1,10 @@
 defmodule Openrouter.Integration.RunContextTest do
-  use ExUnit.Case
+  use Reqord.Case
 
   @moduletag :integration
   @moduletag :run_context
 
-  alias Openrouter.{Tool, RunContext}
-
-  setup do
-    unless System.get_env("OPENROUTER_API_KEY") || System.get_env("REQORD_MODE") == "replay" do
-      ExUnit.configure(exclude: [:integration])
-    end
-
-    :ok
-  end
+  alias Openrouter.{RunContext, Tool}
 
   describe "RunContext with context-aware tools" do
     defmodule SimpleDeps do
@@ -184,12 +176,12 @@ defmodule Openrouter.Integration.RunContextTest do
   end
 
   describe "RunContext with conversation history" do
+    defmodule StateDeps do
+      defstruct [:session_id, :state]
+    end
+
     @tag :integration
     test "RunContext persists through multi-turn conversation" do
-      defmodule StateDeps do
-        defstruct [:session_id, :state]
-      end
-
       # Simulated stateful storage
       {:ok, state_agent} = Agent.start_link(fn -> %{} end)
 

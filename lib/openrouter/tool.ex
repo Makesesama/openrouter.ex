@@ -11,8 +11,8 @@ defmodule Openrouter.Tool do
       weather_tool = Openrouter.Tool.new(
         :get_weather,
         "Get the current weather for a location",
-        fn %{location: location} ->
-          {:ok, "The weather in #{location} is sunny, 72°F"}
+        fn %{location: loc} ->
+          {:ok, "The weather in " <> loc <> " is sunny, 72°F"}
         end,
         parameters: %{
           location: [type: :string, description: "City name", required: true],
@@ -254,28 +254,40 @@ defmodule Openrouter.Tool do
   """
   @spec execute(t(), map(), RunContext.t() | nil) :: {:ok, any()} | {:error, any()}
   def execute(%__MODULE__{} = tool, arguments, context \\ nil) do
-    try do
-      # Convert string keys to atoms for function arguments
-      args = atomize_keys(arguments)
+    # First validate arguments
+    case validate_arguments(tool, arguments) do
+      :ok ->
+        try do
+          # Convert string keys to atoms for function arguments
+          args = atomize_keys(arguments)
 
-      result =
-        if tool.context_aware do
-          # Context-aware function receives context as first argument
-          tool.function.(context, args)
-        else
-          # Regular function just gets arguments
-          tool.function.(args)
+          result =
+            if tool.context_aware do
+              # Check if context is provided for context-aware tools
+              if is_nil(context) do
+                {:error, "Context required for context-aware tool"}
+              else
+                # Context-aware function receives args as first argument, context as second
+                tool.function.(args, context)
+              end
+            else
+              # Regular function just gets arguments
+              tool.function.(args)
+            end
+
+          # Normalize result
+          case result do
+            {:ok, _} = success -> success
+            {:error, _} = error -> error
+            value -> {:ok, value}
+          end
+        rescue
+          error ->
+            {:error, Exception.message(error)}
         end
 
-      # Normalize result
-      case result do
-        {:ok, _} = success -> success
-        {:error, _} = error -> error
-        value -> {:ok, value}
-      end
-    rescue
-      error ->
-        {:error, Exception.message(error)}
+      {:error, _} = error ->
+        error
     end
   end
 
@@ -286,21 +298,101 @@ defmodule Openrouter.Tool do
   """
   @spec validate_arguments(t(), map()) :: :ok | {:error, String.t()}
   def validate_arguments(%__MODULE__{} = tool, arguments) do
+    # Convert arguments to atom keys for consistent checking
+    args = atomize_keys(arguments)
+
     # Check required parameters
     required_params =
       tool.parameters
       |> Enum.filter(fn {_name, spec} -> Keyword.get(spec, :required, false) end)
-      |> Enum.map(fn {name, _spec} -> to_string(name) end)
+      |> Enum.map(fn {name, _spec} -> name end)
 
     missing =
       Enum.filter(required_params, fn param ->
-        not Map.has_key?(arguments, param) and not Map.has_key?(arguments, String.to_atom(param))
+        not Map.has_key?(args, param)
       end)
 
     if missing != [] do
       {:error, "Missing required parameters: #{Enum.join(missing, ", ")}"}
     else
+      # Validate types for provided parameters
+      validate_types(args, tool.parameters)
+    end
+  end
+
+  # Validate parameter types
+  defp validate_types(args, parameters) do
+    Enum.reduce_while(parameters, :ok, fn {name, spec}, _acc ->
+      validate_parameter(args, name, spec)
+    end)
+  end
+
+  defp validate_parameter(args, name, spec) do
+    value = Map.get(args, name)
+    required = Keyword.get(spec, :required, false)
+
+    if is_nil(value) and not required do
+      {:cont, :ok}
+    else
+      case validate_type(name, value, spec) do
+        :ok -> {:cont, :ok}
+        {:error, _} = error -> {:halt, error}
+      end
+    end
+  end
+
+  defp validate_type(name, value, spec) do
+    type = Keyword.get(spec, :type, :string)
+
+    with :ok <- validate_type_match(name, value, type) do
+      validate_enum_constraint(name, value, spec)
+    end
+  end
+
+  defp validate_type_match(name, value, type) do
+    type_valid = check_type_match(value, type)
+
+    if type_valid do
       :ok
+    else
+      {:error, "Parameter '#{name}' must be #{format_type_name(type)}"}
+    end
+  end
+
+  defp check_type_match(value, type) do
+    case type do
+      :string -> is_binary(value)
+      :integer -> is_integer(value)
+      :number -> is_number(value)
+      :boolean -> is_boolean(value)
+      :array -> is_list(value)
+      :object -> is_map(value)
+      _ -> true
+    end
+  end
+
+  defp format_type_name(type) do
+    case type do
+      :number -> "a number"
+      :integer -> "an integer"
+      :array -> "an array"
+      :object -> "an object"
+      _ -> "a #{type}"
+    end
+  end
+
+  defp validate_enum_constraint(name, value, spec) do
+    case Keyword.get(spec, :enum) do
+      nil -> :ok
+      enum -> validate_enum_value(name, value, enum)
+    end
+  end
+
+  defp validate_enum_value(name, value, enum) do
+    if value in enum do
+      :ok
+    else
+      {:error, "Parameter '#{name}' must be one of: #{Enum.join(enum, ", ")}"}
     end
   end
 
@@ -326,72 +418,133 @@ defmodule Openrouter.Tool do
       |> Enum.filter(fn {_name, spec} -> Keyword.get(spec, :required, false) end)
       |> Enum.map(fn {name, _spec} -> to_string(name) end)
 
-    schema = %{
+    %{
       type: "object",
-      properties: properties
+      properties: properties,
+      required: required
     }
+  end
 
-    if required != [] do
-      Map.put(schema, :required, required)
-    else
-      schema
+  defp build_property_schema(spec) when is_list(spec) do
+    type = Keyword.fetch!(spec, :type)
+    schema = build_base_schema_keyword(spec, type)
+
+    schema
+    |> add_array_items_from_keyword(spec, type)
+    |> add_object_properties_from_keyword(spec, type)
+  end
+
+  defp build_base_schema_keyword(spec, type) do
+    schema = %{type: type_to_string(type)}
+
+    schema
+    |> add_description_from_keyword(spec)
+    |> add_enum_from_keyword(spec)
+  end
+
+  defp add_description_from_keyword(schema, spec) do
+    case Keyword.get(spec, :description) do
+      nil -> schema
+      description -> Map.put(schema, :description, description)
     end
   end
 
-  defp build_property_schema(spec) do
-    type = Keyword.fetch!(spec, :type)
+  defp add_enum_from_keyword(schema, spec) do
+    case Keyword.get(spec, :enum) do
+      nil -> schema
+      enum -> Map.put(schema, :enum, enum)
+    end
+  end
 
-    schema = %{type: type_to_string(type)}
+  defp add_array_items_from_keyword(schema, spec, :array) do
+    items = Keyword.get(spec, :items, :string)
+    items_schema = build_items_schema(items)
+    Map.put(schema, :items, items_schema)
+  end
 
-    schema =
-      if description = Keyword.get(spec, :description) do
-        Map.put(schema, :description, description)
-      else
-        schema
-      end
+  defp add_array_items_from_keyword(schema, _spec, _type), do: schema
 
-    schema =
-      if enum = Keyword.get(spec, :enum) do
-        Map.put(schema, :enum, enum)
-      else
-        schema
-      end
+  defp add_object_properties_from_keyword(schema, spec, :object) do
+    case Keyword.get(spec, :properties) do
+      nil -> schema
+      properties -> Map.put(schema, :properties, build_nested_properties(properties))
+    end
+  end
 
-    schema =
-      if type == :array do
-        items = Keyword.get(spec, :items, :string)
+  defp add_object_properties_from_keyword(schema, _spec, _type), do: schema
 
-        items_schema =
-          if is_atom(items) do
-            %{type: type_to_string(items)}
-          else
-            build_property_schema(items)
-          end
-
-        Map.put(schema, :items, items_schema)
-      else
-        schema
-      end
-
-    schema =
-      if type == :object do
-        if properties = Keyword.get(spec, :properties) do
-          nested_properties =
-            properties
-            |> Enum.map(fn {name, prop_spec} ->
-              {name, build_property_schema(prop_spec)}
-            end)
-            |> Map.new()
-
-          Map.put(schema, :properties, nested_properties)
-        else
-          schema
-        end
-      else
-        schema
-      end
+  defp build_property_schema_from_map(spec) when is_map(spec) do
+    type = Map.get(spec, :type, :string)
+    schema = build_base_schema_map(spec, type)
 
     schema
+    |> add_array_items_if_needed(spec, type)
+    |> add_object_properties_if_needed(spec, type)
+  end
+
+  defp build_base_schema_map(spec, type) do
+    schema = %{type: type_to_string(type)}
+
+    schema
+    |> add_description_if_present(spec)
+    |> add_enum_if_present(spec)
+  end
+
+  defp add_description_if_present(schema, spec) do
+    case Map.get(spec, :description) do
+      nil -> schema
+      description -> Map.put(schema, :description, description)
+    end
+  end
+
+  defp add_enum_if_present(schema, spec) do
+    case Map.get(spec, :enum) do
+      nil -> schema
+      enum -> Map.put(schema, :enum, enum)
+    end
+  end
+
+  defp add_array_items_if_needed(schema, spec, :array) do
+    items = Map.get(spec, :items, :string)
+    items_schema = build_items_schema(items)
+    Map.put(schema, :items, items_schema)
+  end
+
+  defp add_array_items_if_needed(schema, _spec, _type), do: schema
+
+  defp build_items_schema(atom) when is_atom(atom) do
+    %{type: type_to_string(atom)}
+  end
+
+  defp build_items_schema(items_spec) when is_list(items_spec) do
+    build_property_schema(items_spec)
+  end
+
+  defp build_items_schema(items_spec) when is_map(items_spec) do
+    build_property_schema_from_map(items_spec)
+  end
+
+  defp add_object_properties_if_needed(schema, spec, :object) do
+    case Map.get(spec, :properties) do
+      nil -> schema
+      properties -> Map.put(schema, :properties, build_nested_properties(properties))
+    end
+  end
+
+  defp add_object_properties_if_needed(schema, _spec, _type), do: schema
+
+  defp build_nested_properties(properties) do
+    properties
+    |> Enum.map(&build_property_entry/1)
+    |> Map.new()
+  end
+
+  defp build_property_entry({name, spec}) when is_list(spec) do
+    {name, build_property_schema(spec)}
+  end
+
+  defp build_property_entry({name, spec}) when is_map(spec) do
+    {name, build_property_schema_from_map(spec)}
   end
 
   defp type_to_string(:string), do: "string"

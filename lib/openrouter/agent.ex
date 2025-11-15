@@ -15,8 +15,8 @@ defmodule Openrouter.Agent do
         Openrouter.Tool.new(
           :get_weather,
           "Get weather for a location",
-          fn %{location: loc} ->
-            {:ok, "Sunny, 72°F in #{loc}"}
+          fn %{location: location} ->
+            {:ok, "Sunny, 72°F in " <> location}
           end,
           parameters: %{
             location: [type: :string, required: true]
@@ -61,11 +61,11 @@ defmodule Openrouter.Agent do
       {:ok, result} = Openrouter.Agent.run(
         prompt,
         tools: tools,
-        on_tool_call: fn tool_call ->
-          IO.puts("Calling tool: #{tool_call.function.name}")
+        on_tool_call: fn tc ->
+          IO.puts("Calling tool...")
         end,
-        on_tool_result: fn tool_call, result ->
-          IO.puts("Tool #{tool_call.function.name} returned: #{inspect(result)}")
+        on_tool_result: fn _tc, _result ->
+          IO.puts("Tool execution completed")
         end
       )
 
@@ -112,8 +112,8 @@ defmodule Openrouter.Agent do
       )
   """
 
-  alias Openrouter.{Tool, Client, RunContext}
-  alias Openrouter.Types.{Message, Response, ToolCall, Usage}
+  alias Openrouter.{Client, RunContext, Tool}
+  alias Openrouter.Types.{Message, Response, ToolCall}
 
   require Logger
 
@@ -241,16 +241,13 @@ defmodule Openrouter.Agent do
     deps = Keyword.get(opts, :deps)
     model = Keyword.get(opts, :model)
 
-    # Normalize messages
-    normalized_messages = Openrouter.normalize_messages(messages)
-
-    run_loop(client, normalized_messages, tools, max_iterations, opts, %{
+    run_loop(client, messages, tools, max_iterations, opts, %{
       on_tool_call: on_tool_call,
       on_tool_result: on_tool_result,
       iteration: 0,
       deps: deps,
       model: model,
-      context: build_initial_context(deps, model, normalized_messages)
+      context: build_initial_context(deps, model, messages)
     })
   end
 
@@ -274,7 +271,14 @@ defmodule Openrouter.Agent do
     messages ++ [Message.new(:user, prompt)]
   end
 
-  defp run_loop(_client, _messages, _tools, max_iterations, _opts, %{iteration: iteration} = _state)
+  defp run_loop(
+         _client,
+         _messages,
+         _tools,
+         max_iterations,
+         _opts,
+         %{iteration: iteration} = _state
+       )
        when iteration >= max_iterations do
     {:error, "Maximum iterations (#{max_iterations}) reached without final answer"}
   end
@@ -303,21 +307,18 @@ defmodule Openrouter.Agent do
           messages = messages ++ [response_to_message(response)]
 
           # Execute all tool calls with updated context
-          case execute_tool_calls(tool_calls, tools, %{state | context: updated_context}) do
-            {:ok, results, final_context} ->
-              # Add tool result messages
-              messages = messages ++ results
+          {:ok, results, final_context} =
+            execute_tool_calls(tool_calls, tools, %{state | context: updated_context})
 
-              # Continue loop with updated context
-              run_loop(client, messages, tools, max_iterations, opts, %{
-                state
-                | iteration: state.iteration + 1,
-                  context: final_context
-              })
+          # Add tool result messages
+          messages = messages ++ results
 
-            {:error, _} = error ->
-              error
-          end
+          # Continue loop with updated context
+          run_loop(client, messages, tools, max_iterations, opts, %{
+            state
+            | iteration: state.iteration + 1,
+              context: final_context
+          })
         else
           # No tool calls, this is the final answer
           {:ok, response}

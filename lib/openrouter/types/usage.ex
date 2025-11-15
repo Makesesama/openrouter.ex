@@ -101,7 +101,8 @@ defmodule Openrouter.Types.Usage do
   """
   @spec format(t()) :: String.t()
   def format(%__MODULE__{} = usage) do
-    tokens = "#{usage.total_tokens} tokens (#{usage.prompt_tokens} prompt + #{usage.completion_tokens} completion)"
+    tokens =
+      "#{usage.total_tokens} tokens (#{usage.prompt_tokens} prompt + #{usage.completion_tokens} completion)"
 
     cost =
       if usage.total_cost do

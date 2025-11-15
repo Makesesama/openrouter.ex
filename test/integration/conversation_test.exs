@@ -1,18 +1,10 @@
 defmodule Openrouter.Integration.ConversationTest do
-  use ExUnit.Case
+  use Reqord.Case
 
   @moduletag :integration
   @moduletag :conversation
 
   alias Openrouter.{Conversation, ConversationServer, Tool}
-
-  setup do
-    unless System.get_env("OPENROUTER_API_KEY") || System.get_env("REQORD_MODE") == "replay" do
-      ExUnit.configure(exclude: [:integration])
-    end
-
-    :ok
-  end
 
   describe "Conversation (stateless)" do
     @tag :integration
@@ -38,7 +30,8 @@ defmodule Openrouter.Integration.ConversationTest do
       assert response2.content =~ ~r/8|eight/i
 
       # Verify message history
-      assert Conversation.message_count(conv) >= 5 # system + 2 user + 2 assistant
+      # system + 2 user + 2 assistant
+      assert Conversation.message_count(conv) >= 5
     end
 
     @tag :integration
@@ -186,7 +179,8 @@ defmodule Openrouter.Integration.ConversationTest do
 
       # Verify message count
       count = ConversationServer.message_count(pid)
-      assert count >= 4 # system + 2 user + 2 assistant (minimum)
+      # system + 2 user + 2 assistant (minimum)
+      assert count >= 4
 
       ConversationServer.stop(pid)
     end

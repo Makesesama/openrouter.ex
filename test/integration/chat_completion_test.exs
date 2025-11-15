@@ -1,17 +1,8 @@
 defmodule Openrouter.Integration.ChatCompletionTest do
-  use ExUnit.Case
+  use Reqord.Case
 
   @moduletag :integration
   @moduletag :chat
-
-  setup do
-    # Skip if no API key is set and not in replay mode
-    unless System.get_env("OPENROUTER_API_KEY") || System.get_env("REQORD_MODE") == "replay" do
-      ExUnit.configure(exclude: [:integration])
-    end
-
-    :ok
-  end
 
   describe "simple chat completion" do
     @tag :integration

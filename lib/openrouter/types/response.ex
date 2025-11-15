@@ -68,6 +68,7 @@ defmodule Openrouter.Types.Response do
   defp parse_role(_), do: :assistant
 
   defp parse_usage(nil), do: nil
+
   defp parse_usage(usage) when is_map(usage) do
     Usage.from_api_format(usage)
   end

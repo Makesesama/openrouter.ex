@@ -8,7 +8,7 @@ defmodule Openrouter.Provider.OpenRouter do
   @behaviour Openrouter.Provider
 
   alias Openrouter.HTTP
-  alias Openrouter.Types.{Message, Response, Error}
+  alias Openrouter.Types.{Error, Message, Response}
 
   @impl true
   def name, do: "openrouter"
@@ -57,6 +57,14 @@ defmodule Openrouter.Provider.OpenRouter do
       {:ok, %{"data" => data}} ->
         embeddings = Enum.map(data, fn item -> item["embedding"] end)
         {:ok, embeddings}
+
+      {:ok, %{"error" => error_data}} ->
+        # API returned an error in successful response
+        status_code = error_data["code"] || 500
+        message = error_data["message"] || "Unknown error"
+        type = error_code_to_type(status_code)
+
+        {:error, Error.new(type, message, status_code: status_code)}
 
       {:error, _} = error ->
         error
@@ -149,4 +157,8 @@ defmodule Openrouter.Provider.OpenRouter do
 
   defp maybe_add(map, _key, nil), do: map
   defp maybe_add(map, key, value), do: Map.put(map, key, value)
+
+  defp error_code_to_type(code) when code in 400..499, do: :invalid_request
+  defp error_code_to_type(code) when code in 500..599, do: :server_error
+  defp error_code_to_type(_code), do: :unknown_error
 end

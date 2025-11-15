@@ -1,8 +1,13 @@
+# Start reqord application for HTTP recording/replay
+{:ok, _} = Application.ensure_all_started(:reqord)
+
 # Exclude integration tests by default
 # Run integration tests with: mix test --only integration
-ExUnit.start(exclude: [:integration])
+# Also exclude :skip_reqord tests that don't work with cassette replay
+ExUnit.start(exclude: [:integration, :skip_reqord])
 
-# Configure test mode for reqord if available
-if Code.ensure_loaded?(Reqord) do
-  Reqord.configure(mode: System.get_env("REQORD_MODE", "replay"))
-end
+# Reqord will automatically handle HTTP recording/replay
+# Use environment variable to control mode:
+#   REQORD=none (default) - Replay from cassettes
+#   REQORD=new_episodes - Record new requests, replay existing
+#   REQORD=all - Re-record everything

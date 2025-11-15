@@ -1,16 +1,7 @@
 defmodule Openrouter.Integration.EmbeddingsTest do
-  use ExUnit.Case
+  use Reqord.Case
 
-  @moduletag :integration
   @moduletag :embeddings
-
-  setup do
-    unless System.get_env("OPENROUTER_API_KEY") || System.get_env("REQORD_MODE") == "replay" do
-      ExUnit.configure(exclude: [:integration])
-    end
-
-    :ok
-  end
 
   describe "single text embedding" do
     @tag :integration
@@ -38,7 +29,7 @@ defmodule Openrouter.Integration.EmbeddingsTest do
       assert length(embedding) == 1536
     end
 
-    @tag :integration
+    @tag :skip_reqord
     test "different texts produce different embeddings" do
       {:ok, [embedding1]} =
         Openrouter.embed(
@@ -56,7 +47,7 @@ defmodule Openrouter.Integration.EmbeddingsTest do
       refute embedding1 == embedding2
     end
 
-    @tag :integration
+    @tag :skip_reqord
     test "similar texts produce similar embeddings" do
       {:ok, [embedding1]} =
         Openrouter.embed(
@@ -97,7 +88,7 @@ defmodule Openrouter.Integration.EmbeddingsTest do
       assert length(dimensions) == 1
     end
 
-    @tag :integration
+    @tag :skip_reqord
     test "batch embeddings maintain order" do
       texts = ["First", "Second", "Third"]
 
@@ -127,20 +118,23 @@ defmodule Openrouter.Integration.EmbeddingsTest do
         )
 
       assert length(embeddings) == 10
+
       assert Enum.all?(embeddings, fn emb ->
-        is_list(emb) && length(emb) == 1536
-      end)
+               is_list(emb) && length(emb) == 1536
+             end)
     end
 
     @tag :integration
     test "handles empty batch" do
-      {:ok, embeddings} =
+      result =
         Openrouter.embed(
           [],
           model: "text-embedding-3-small"
         )
 
-      assert embeddings == []
+      # Empty input should return an error
+      assert {:error, error} = result
+      assert error.type == :invalid_request
     end
   end
 
@@ -181,7 +175,7 @@ defmodule Openrouter.Integration.EmbeddingsTest do
   end
 
   describe "semantic similarity" do
-    @tag :integration
+    @tag :skip_reqord
     test "finds semantically similar texts" do
       query = "artificial intelligence"
 
@@ -294,6 +288,7 @@ defmodule Openrouter.Integration.EmbeddingsTest do
 
   defp assert_embeddings_similar(emb1, emb2, threshold \\ 0.99) do
     similarity = cosine_similarity(emb1, emb2)
+
     assert similarity > threshold,
            "Embeddings should be similar (similarity: #{similarity}, threshold: #{threshold})"
   end

@@ -398,37 +398,40 @@ defmodule Openrouter.CostTracker do
   end
 
   defp format_duration(seconds) when seconds < 60, do: "#{seconds}s"
-  defp format_duration(seconds) when seconds < 3600, do: "#{div(seconds, 60)}m #{rem(seconds, 60)}s"
+
+  defp format_duration(seconds) when seconds < 3600,
+    do: "#{div(seconds, 60)}m #{rem(seconds, 60)}s"
 
   defp format_duration(seconds),
     do: "#{div(seconds, 3600)}h #{div(rem(seconds, 3600), 60)}m"
 
   defp format_budget_status(:ok), do: "Within budget"
-  defp format_budget_status({:warning, remaining}), do: "Warning: $#{Float.round(remaining, 4)} remaining"
+
+  defp format_budget_status({:warning, remaining}),
+    do: "Warning: $#{Float.round(remaining, 4)} remaining"
+
   defp format_budget_status({:exceeded, amount}), do: "EXCEEDED by $#{Float.round(amount, 4)}"
 
   defp format_by_model(by_model) do
     by_model
     |> Enum.sort_by(fn {_model, stats} -> stats.cost end, :desc)
-    |> Enum.map(fn {model, stats} ->
+    |> Enum.map_join("\n", fn {model, stats} ->
       "  #{model}:\n" <>
         "    Cost: $#{Float.round(stats.cost, 6)}\n" <>
         "    Tokens: #{stats.tokens}\n" <>
         "    Requests: #{stats.requests}"
     end)
-    |> Enum.join("\n")
   end
 
   defp format_by_session(by_session) do
     by_session
     |> Enum.sort_by(fn {_session, stats} -> stats.cost end, :desc)
     |> Enum.take(10)
-    |> Enum.map(fn {session_id, stats} ->
+    |> Enum.map_join("\n", fn {session_id, stats} ->
       "  #{session_id}:\n" <>
         "    Cost: $#{Float.round(stats.cost, 6)}\n" <>
         "    Tokens: #{stats.tokens}\n" <>
         "    Requests: #{stats.requests}"
     end)
-    |> Enum.join("\n")
   end
 end

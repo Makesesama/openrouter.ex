@@ -1,25 +1,16 @@
 defmodule Openrouter.Integration.StructuredOutputsTest do
-  use ExUnit.Case
+  use Reqord.Case
 
-  @moduletag :integration
   @moduletag :structured_outputs
-
-  setup do
-    unless System.get_env("OPENROUTER_API_KEY") || System.get_env("REQORD_MODE") == "replay" do
-      ExUnit.configure(exclude: [:integration])
-    end
-
-    :ok
-  end
 
   describe "Ecto schema extraction" do
     defmodule PersonSchema do
       use Openrouter.Schema
 
       embedded_schema do
-        field :name, :string
-        field :age, :integer
-        field :city, :string
+        field(:name, :string)
+        field(:age, :integer)
+        field(:city, :string)
       end
 
       def changeset(schema, attrs) do
@@ -46,7 +37,7 @@ defmodule Openrouter.Integration.StructuredOutputsTest do
       assert person.city =~ "New York"
     end
 
-    @tag :integration
+    @tag :skip_reqord
     test "validates required fields" do
       # This text is missing age information
       text = "Alice lives in Boston"
@@ -78,11 +69,11 @@ defmodule Openrouter.Integration.StructuredOutputsTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :name, :string
-        field :price, :float
-        field :category, :string
-        field :in_stock, :boolean
-        field :features, {:array, :string}
+        field(:name, :string)
+        field(:price, :float)
+        field(:category, :string)
+        field(:in_stock, :boolean)
+        field(:features, {:array, :string})
       end
 
       def changeset(schema, attrs) do
@@ -181,8 +172,8 @@ defmodule Openrouter.Integration.StructuredOutputsTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :email, :string
-        field :age, :integer
+        field(:email, :string)
+        field(:age, :integer)
       end
 
       def changeset(schema, attrs) do
@@ -213,7 +204,7 @@ defmodule Openrouter.Integration.StructuredOutputsTest do
       assert person.age == 25
     end
 
-    @tag :integration
+    @tag :skip_reqord
     test "respects max_retries limit" do
       # Invalid data that can't be fixed
       text = "No valid information here"
@@ -236,8 +227,8 @@ defmodule Openrouter.Integration.StructuredOutputsTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :title, :string
-        field :summary, :string
+        field(:title, :string)
+        field(:summary, :string)
       end
 
       def changeset(schema, attrs) do
@@ -249,7 +240,8 @@ defmodule Openrouter.Integration.StructuredOutputsTest do
 
     @tag :integration
     test "works with different model providers" do
-      text = "Article: The Future of AI. This article discusses emerging trends in artificial intelligence."
+      text =
+        "Article: The Future of AI. This article discusses emerging trends in artificial intelligence."
 
       # Test with GPT-3.5
       {:ok, result1} =
@@ -269,8 +261,8 @@ defmodule Openrouter.Integration.StructuredOutputsTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :count, :integer
-        field :percentage, :float
+        field(:count, :integer)
+        field(:percentage, :float)
       end
 
       def changeset(schema, attrs) do
@@ -304,8 +296,8 @@ defmodule Openrouter.Integration.StructuredOutputsTest do
       use Openrouter.Schema
 
       embedded_schema do
-        field :tags, {:array, :string}
-        field :scores, {:array, :integer}
+        field(:tags, {:array, :string})
+        field(:scores, {:array, :integer})
       end
 
       def changeset(schema, attrs) do

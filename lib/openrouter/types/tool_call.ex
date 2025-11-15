@@ -181,7 +181,8 @@ defmodule Openrouter.Types.ToolCall do
   @spec from_response(Openrouter.Types.Response.t()) :: [t()]
   def from_response(%Openrouter.Types.Response{tool_calls: nil}), do: []
 
-  def from_response(%Openrouter.Types.Response{tool_calls: tool_calls}) when is_list(tool_calls) do
+  def from_response(%Openrouter.Types.Response{tool_calls: tool_calls})
+      when is_list(tool_calls) do
     Enum.map(tool_calls, &from_api_format/1)
   end
 

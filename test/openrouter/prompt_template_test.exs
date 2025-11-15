@@ -29,10 +29,11 @@ defmodule Openrouter.PromptTemplateTest do
     end
 
     test "accepts default values" do
-      template = PromptTemplate.new(
-        "Hello {{name}}!",
-        defaults: %{name: "Guest"}
-      )
+      template =
+        PromptTemplate.new(
+          "Hello {{name}}!",
+          defaults: %{name: "Guest"}
+        )
 
       assert template.defaults == %{name: "Guest"}
     end
@@ -45,12 +46,13 @@ defmodule Openrouter.PromptTemplateTest do
     end
 
     test "extracts variables from conditional blocks" do
-      template = PromptTemplate.new("""
-      Hello {{name}}
-      {{#if admin}}
-      You are an admin
-      {{/if}}
-      """)
+      template =
+        PromptTemplate.new("""
+        Hello {{name}}
+        {{#if admin}}
+        You are an admin
+        {{/if}}
+        """)
 
       assert :name in template.variables
       assert :admin in template.variables
@@ -80,20 +82,22 @@ defmodule Openrouter.PromptTemplateTest do
     test "renders with multiple variables" do
       template = PromptTemplate.new("{{greeting}} {{name}}, you are {{age}}")
 
-      {:ok, result} = PromptTemplate.render(template,
-        greeting: "Hello",
-        name: "Bob",
-        age: 30
-      )
+      {:ok, result} =
+        PromptTemplate.render(template,
+          greeting: "Hello",
+          name: "Bob",
+          age: 30
+        )
 
       assert result == "Hello Bob, you are 30"
     end
 
     test "uses default values" do
-      template = PromptTemplate.new(
-        "Hello {{name}}! Role: {{role}}",
-        defaults: %{role: "user"}
-      )
+      template =
+        PromptTemplate.new(
+          "Hello {{name}}! Role: {{role}}",
+          defaults: %{role: "user"}
+        )
 
       {:ok, result} = PromptTemplate.render(template, name: "Alice")
 
@@ -101,10 +105,11 @@ defmodule Openrouter.PromptTemplateTest do
     end
 
     test "overrides default values" do
-      template = PromptTemplate.new(
-        "Hello {{name}}! Role: {{role}}",
-        defaults: %{role: "user"}
-      )
+      template =
+        PromptTemplate.new(
+          "Hello {{name}}! Role: {{role}}",
+          defaults: %{role: "user"}
+        )
 
       {:ok, result} = PromptTemplate.render(template, name: "Alice", role: "admin")
 
@@ -165,12 +170,13 @@ defmodule Openrouter.PromptTemplateTest do
 
   describe "conditional blocks" do
     test "renders content when condition is true" do
-      template = PromptTemplate.new("""
-      Hello {{name}}
-      {{#if admin}}
-      You have admin access
-      {{/if}}
-      """)
+      template =
+        PromptTemplate.new("""
+        Hello {{name}}
+        {{#if admin}}
+        You have admin access
+        {{/if}}
+        """)
 
       {:ok, result} = PromptTemplate.render(template, name: "Alice", admin: true)
 
@@ -178,12 +184,13 @@ defmodule Openrouter.PromptTemplateTest do
     end
 
     test "omits content when condition is false" do
-      template = PromptTemplate.new("""
-      Hello {{name}}
-      {{#if admin}}
-      You have admin access
-      {{/if}}
-      """)
+      template =
+        PromptTemplate.new("""
+        Hello {{name}}
+        {{#if admin}}
+        You have admin access
+        {{/if}}
+        """)
 
       {:ok, result} = PromptTemplate.render(template, name: "Alice", admin: false)
 
@@ -223,11 +230,12 @@ defmodule Openrouter.PromptTemplateTest do
     end
 
     test "handles multiple conditional blocks" do
-      template = PromptTemplate.new("""
-      {{#if a}}A is true{{/if}}
-      {{#if b}}B is true{{/if}}
-      {{#if c}}C is true{{/if}}
-      """)
+      template =
+        PromptTemplate.new("""
+        {{#if a}}A is true{{/if}}
+        {{#if b}}B is true{{/if}}
+        {{#if c}}C is true{{/if}}
+        """)
 
       {:ok, result} = PromptTemplate.render(template, a: true, b: false, c: true)
 
@@ -237,11 +245,12 @@ defmodule Openrouter.PromptTemplateTest do
     end
 
     test "handles nested variables in conditionals" do
-      template = PromptTemplate.new("""
-      {{#if premium}}
-      Welcome {{name}}, Premium Member!
-      {{/if}}
-      """)
+      template =
+        PromptTemplate.new("""
+        {{#if premium}}
+        Welcome {{name}}, Premium Member!
+        {{/if}}
+        """)
 
       {:ok, result} = PromptTemplate.render(template, premium: true, name: "Alice")
 
@@ -249,13 +258,14 @@ defmodule Openrouter.PromptTemplateTest do
     end
 
     test "preserves whitespace in conditional blocks" do
-      template = PromptTemplate.new("""
-      Start
-      {{#if show}}
-        Indented content
-      {{/if}}
-      End
-      """)
+      template =
+        PromptTemplate.new("""
+        Start
+        {{#if show}}
+          Indented content
+        {{/if}}
+        End
+        """)
 
       {:ok, result} = PromptTemplate.render(template, show: true)
 
@@ -337,10 +347,11 @@ defmodule Openrouter.PromptTemplateTest do
 
       combined = PromptTemplate.compose([t1, t2], separator: "\n")
 
-      {:ok, result} = PromptTemplate.render(combined,
-        system: "You are helpful",
-        query: "Help me"
-      )
+      {:ok, result} =
+        PromptTemplate.render(combined,
+          system: "You are helpful",
+          query: "Help me"
+        )
 
       assert result == "System: You are helpful\nUser: Help me"
     end
@@ -425,10 +436,11 @@ defmodule Openrouter.PromptTemplateTest do
 
   describe "required_variables/1" do
     test "returns variables without defaults" do
-      template = PromptTemplate.new(
-        "{{a}} {{b}} {{c}}",
-        defaults: %{b: "B"}
-      )
+      template =
+        PromptTemplate.new(
+          "{{a}} {{b}} {{c}}",
+          defaults: %{b: "B"}
+        )
 
       required = PromptTemplate.required_variables(template)
 
@@ -447,10 +459,11 @@ defmodule Openrouter.PromptTemplateTest do
     end
 
     test "returns empty list when all have defaults" do
-      template = PromptTemplate.new(
-        "{{a}} {{b}}",
-        defaults: %{a: 1, b: 2}
-      )
+      template =
+        PromptTemplate.new(
+          "{{a}} {{b}}",
+          defaults: %{a: 1, b: 2}
+        )
 
       assert PromptTemplate.required_variables(template) == []
     end
@@ -475,10 +488,11 @@ defmodule Openrouter.PromptTemplateTest do
     end
 
     test "accepts options", %{path: path} do
-      {:ok, template} = PromptTemplate.from_file(path,
-        defaults: %{name: "World"},
-        metadata: %{source: "file"}
-      )
+      {:ok, template} =
+        PromptTemplate.from_file(path,
+          defaults: %{name: "World"},
+          metadata: %{source: "file"}
+        )
 
       assert template.defaults == %{name: "World"}
       assert template.metadata == %{source: "file"}
@@ -545,9 +559,10 @@ defmodule Openrouter.PromptTemplateTest do
     test "handles special characters in variable values" do
       template = PromptTemplate.new("Message: {{msg}}")
 
-      {:ok, result} = PromptTemplate.render(template,
-        msg: "Hello & goodbye! <test>"
-      )
+      {:ok, result} =
+        PromptTemplate.render(template,
+          msg: "Hello & goodbye! <test>"
+        )
 
       assert result == "Message: Hello & goodbye! <test>"
     end
@@ -555,9 +570,10 @@ defmodule Openrouter.PromptTemplateTest do
     test "handles multiline variable values" do
       template = PromptTemplate.new("Content:\n{{text}}")
 
-      {:ok, result} = PromptTemplate.render(template,
-        text: "Line 1\nLine 2\nLine 3"
-      )
+      {:ok, result} =
+        PromptTemplate.render(template,
+          text: "Line 1\nLine 2\nLine 3"
+        )
 
       assert result =~ "Line 1\nLine 2\nLine 3"
     end
@@ -565,10 +581,11 @@ defmodule Openrouter.PromptTemplateTest do
     test "handles unicode in templates and variables" do
       template = PromptTemplate.new("Hello {{name}}! 你好 {{chinese_name}}")
 
-      {:ok, result} = PromptTemplate.render(template,
-        name: "Alice",
-        chinese_name: "艾丽丝"
-      )
+      {:ok, result} =
+        PromptTemplate.render(template,
+          name: "Alice",
+          chinese_name: "艾丽丝"
+        )
 
       assert result == "Hello Alice! 你好 艾丽丝"
     end
@@ -576,47 +593,51 @@ defmodule Openrouter.PromptTemplateTest do
 
   describe "complex real-world scenarios" do
     test "multi-step prompt chain" do
-      step1 = PromptTemplate.new(
-        "Extract {{entity_type}} from: {{text}}",
-        defaults: %{entity_type: "entities"}
-      )
+      step1 =
+        PromptTemplate.new(
+          "Extract {{entity_type}} from: {{text}}",
+          defaults: %{entity_type: "entities"}
+        )
 
       step2 = PromptTemplate.new("Analyze: {{results}}")
 
       chain = PromptTemplate.compose([step1, step2], separator: "\n\n")
 
-      {:ok, result} = PromptTemplate.render(chain,
-        text: "Apple and Google announced...",
-        entity_type: "companies",
-        results: "[\"Apple\", \"Google\"]"
-      )
+      {:ok, result} =
+        PromptTemplate.render(chain,
+          text: "Apple and Google announced...",
+          entity_type: "companies",
+          results: "[\"Apple\", \"Google\"]"
+        )
 
       assert result =~ "Extract companies"
       assert result =~ "Analyze: "
     end
 
     test "RAG template with multiple conditionals" do
-      template = PromptTemplate.new("""
-      Context: {{context}}
-      Question: {{question}}
-      {{#if strict}}
-      Only use provided context.
-      {{/if}}
-      {{#if cite}}
-      Include citations.
-      {{/if}}
-      {{#if format}}
-      Format: {{format}}
-      {{/if}}
-      """)
+      template =
+        PromptTemplate.new("""
+        Context: {{context}}
+        Question: {{question}}
+        {{#if strict}}
+        Only use provided context.
+        {{/if}}
+        {{#if cite}}
+        Include citations.
+        {{/if}}
+        {{#if format}}
+        Format: {{format}}
+        {{/if}}
+        """)
 
-      {:ok, result} = PromptTemplate.render(template,
-        context: "Some context...",
-        question: "What is X?",
-        strict: true,
-        cite: true,
-        format: "markdown"
-      )
+      {:ok, result} =
+        PromptTemplate.render(template,
+          context: "Some context...",
+          question: "What is X?",
+          strict: true,
+          cite: true,
+          format: "markdown"
+        )
 
       assert result =~ "Only use provided context"
       assert result =~ "Include citations"
@@ -624,23 +645,25 @@ defmodule Openrouter.PromptTemplateTest do
     end
 
     test "customer support template with defaults and conditionals" do
-      template = PromptTemplate.new(
-        """
-        Customer: {{customer_name}}
-        Issue: {{issue}}
-        {{#if urgent}}
-        ⚠️ URGENT
-        {{/if}}
-        Agent: {{agent}}
-        """,
-        defaults: %{agent: "Support Team", urgent: false}
-      )
+      template =
+        PromptTemplate.new(
+          """
+          Customer: {{customer_name}}
+          Issue: {{issue}}
+          {{#if urgent}}
+          ⚠️ URGENT
+          {{/if}}
+          Agent: {{agent}}
+          """,
+          defaults: %{agent: "Support Team", urgent: false}
+        )
 
-      {:ok, result} = PromptTemplate.render(template,
-        customer_name: "John",
-        issue: "Billing problem",
-        urgent: true
-      )
+      {:ok, result} =
+        PromptTemplate.render(template,
+          customer_name: "John",
+          issue: "Billing problem",
+          urgent: true
+        )
 
       assert result =~ "John"
       assert result =~ "Billing problem"

@@ -101,24 +101,11 @@ defmodule Openrouter.Schema do
   def to_json_schema(schema_module) do
     if function_exported?(schema_module, :__schema__, 1) do
       fields = schema_module.__schema__(:fields)
-      types = schema_module.__schema__(:types)
       embeds = schema_module.__schema__(:embeds)
 
       properties =
         fields
-        |> Enum.map(fn field ->
-          field_type = Map.get(types, field)
-
-          # Check if this is an embedded schema
-          json_type = if field in embeds do
-            embed_type = schema_module.__schema__(:embed, field)
-            ecto_embed_to_json_type(embed_type)
-          else
-            ecto_type_to_json_type(field_type, schema_module)
-          end
-
-          {field, json_type}
-        end)
+        |> Enum.map(&build_field_property(&1, schema_module, embeds))
         |> Map.new()
 
       # Get required fields from changeset if available
@@ -174,13 +161,26 @@ defmodule Openrouter.Schema do
         String.replace(acc, "%{#{key}}", to_string(value))
       end)
     end)
-    |> Enum.map(fn {field, errors} ->
+    |> Enum.map_join("; ", fn {field, errors} ->
       "#{field}: #{Enum.join(errors, ", ")}"
     end)
-    |> Enum.join("; ")
   end
 
   # Private helpers
+
+  defp build_field_property(field, schema_module, embeds) do
+    field_type = schema_module.__schema__(:type, field)
+
+    json_type =
+      if field in embeds do
+        embed_type = schema_module.__schema__(:embed, field)
+        ecto_embed_to_json_type(embed_type)
+      else
+        ecto_type_to_json_type(field_type, schema_module)
+      end
+
+    {field, json_type}
+  end
 
   defp ecto_type_to_json_type(:string, _schema), do: %{type: "string"}
   defp ecto_type_to_json_type(:integer, _schema), do: %{type: "integer"}
@@ -189,11 +189,16 @@ defmodule Openrouter.Schema do
   defp ecto_type_to_json_type(:decimal, _schema), do: %{type: "number"}
   defp ecto_type_to_json_type(:date, _schema), do: %{type: "string", format: "date"}
   defp ecto_type_to_json_type(:time, _schema), do: %{type: "string", format: "time"}
-  defp ecto_type_to_json_type(:naive_datetime, _schema), do: %{type: "string", format: "date-time"}
+
+  defp ecto_type_to_json_type(:naive_datetime, _schema),
+    do: %{type: "string", format: "date-time"}
+
   defp ecto_type_to_json_type(:utc_datetime, _schema), do: %{type: "string", format: "date-time"}
+
   defp ecto_type_to_json_type({:array, inner_type}, schema) do
     %{type: "array", items: ecto_type_to_json_type(inner_type, schema)}
   end
+
   defp ecto_type_to_json_type({:map, _}, _schema), do: %{type: "object"}
   defp ecto_type_to_json_type(:map, _schema), do: %{type: "object"}
   defp ecto_type_to_json_type(_, _schema), do: %{type: "string"}

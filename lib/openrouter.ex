@@ -43,7 +43,7 @@ defmodule Openrouter do
   """
 
   alias Openrouter.{Client, Config}
-  alias Openrouter.Types.{Message, Response, Error}
+  alias Openrouter.Types.{Error, Message, Response}
 
   @type client :: Client.t()
   @type messages :: String.t() | [Message.t()] | [map()]
@@ -75,11 +75,11 @@ defmodule Openrouter do
 
   ## Examples
 
-      iex> client = Openrouter.new()
-      %Openrouter.Client{...}
+      client = Openrouter.new()
+      # => %Openrouter.Client{...}
 
-      iex> client = Openrouter.new(model: "openai/gpt-4", api_key: "or-...")
-      %Openrouter.Client{model: "openai/gpt-4", ...}
+      client = Openrouter.new(model: "openai/gpt-4", api_key: "or-...")
+      # => %Openrouter.Client{model: "openai/gpt-4", ...}
   """
   @spec new(keyword()) :: client()
   def new(opts \\ []) do
@@ -205,7 +205,11 @@ defmodule Openrouter do
         model: "text-embedding-3-small"
       )
   """
-  @spec embed(client() | String.t() | [String.t()], String.t() | [String.t()] | keyword(), keyword()) ::
+  @spec embed(
+          client() | String.t() | [String.t()],
+          String.t() | [String.t()] | keyword(),
+          keyword()
+        ) ::
           {:ok, [list(float())]} | {:error, Error.t()}
   def embed(client_or_text, text_or_opts \\ [], opts \\ [])
 
@@ -373,64 +377,63 @@ defmodule Openrouter do
   defp do_extract_with_retries(client, messages, schema_module, opts, max_retries, attempt) do
     case chat(client, messages, opts) do
       {:ok, response} ->
-        # Parse JSON response
-        case parse_json_response(response.content) do
-          {:ok, data} ->
-            # Validate against Ecto schema
-            case Openrouter.Schema.validate(schema_module, data) do
-              {:ok, struct} ->
-                {:ok, struct}
-
-              {:error, changeset} ->
-                # Retry with error feedback
-                error_message = Openrouter.Schema.format_errors(changeset)
-
-                retry_messages =
-                  messages ++
-                    [
-                      %{role: :assistant, content: response.content},
-                      %{
-                        role: :user,
-                        content:
-                          "The previous response had validation errors: #{error_message}. Please provide a corrected response."
-                      }
-                    ]
-
-                do_extract_with_retries(
-                  client,
-                  retry_messages,
-                  schema_module,
-                  opts,
-                  max_retries,
-                  attempt + 1
-                )
-            end
-
-          {:error, _} ->
-            # Retry with JSON parsing error feedback
-            retry_messages =
-              messages ++
-                [
-                  %{role: :assistant, content: response.content},
-                  %{
-                    role: :user,
-                    content:
-                      "The previous response was not valid JSON. Please provide a valid JSON object."
-                  }
-                ]
-
-            do_extract_with_retries(
-              client,
-              retry_messages,
-              schema_module,
-              opts,
-              max_retries,
-              attempt + 1
-            )
-        end
+        handle_response(client, messages, schema_module, opts, max_retries, attempt, response)
 
       {:error, _} = error ->
         error
+    end
+  end
+
+  defp handle_response(client, messages, schema_module, opts, max_retries, attempt, response) do
+    with {:ok, data} <- parse_json_response(response.content),
+         {:ok, struct} <- Openrouter.Schema.validate(schema_module, data) do
+      {:ok, struct}
+    else
+      {:error, %Ecto.Changeset{} = changeset} ->
+        # Retry with validation error feedback
+        error_message = Openrouter.Schema.format_errors(changeset)
+
+        retry_messages =
+          messages ++
+            [
+              %{role: :assistant, content: response.content},
+              %{
+                role: :user,
+                content:
+                  "The previous response had validation errors: #{error_message}. Please provide a corrected response."
+              }
+            ]
+
+        do_extract_with_retries(
+          client,
+          retry_messages,
+          schema_module,
+          opts,
+          max_retries,
+          attempt + 1
+        )
+
+      {:error, _} ->
+        # Retry with JSON parsing error feedback
+        retry_messages =
+          messages ++
+            [
+              %{role: :assistant, content: response.content},
+              %{
+                role: :user,
+                content:
+                  "The previous response was not valid JSON. Please provide a valid JSON object."
+              }
+            ]
+
+        do_extract_with_retries(
+          client,
+          retry_messages,
+          schema_module,
+          opts,
+          max_retries,
+          attempt + 1
+        )
     end
   end
 
@@ -506,7 +509,9 @@ defmodule Openrouter do
 
   defp normalize_messages(messages) when is_list(messages) do
     Enum.map(messages, fn
-      %Message{} = msg -> msg
+      %Message{} = msg ->
+        msg
+
       %{role: role, content: content} = msg ->
         Message.new(
           role,
@@ -515,6 +520,7 @@ defmodule Openrouter do
           tool_call_id: msg[:tool_call_id],
           tool_calls: msg[:tool_calls]
         )
+
       msg when is_map(msg) ->
         role = msg["role"] || msg[:role]
         content = msg["content"] || msg[:content]

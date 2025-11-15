@@ -1,16 +1,7 @@
 defmodule Openrouter.Integration.ErrorHandlingTest do
-  use ExUnit.Case
+  use Reqord.Case
 
-  @moduletag :integration
   @moduletag :error_handling
-
-  setup do
-    unless System.get_env("OPENROUTER_API_KEY") || System.get_env("REQORD_MODE") == "replay" do
-      ExUnit.configure(exclude: [:integration])
-    end
-
-    :ok
-  end
 
   describe "authentication errors" do
     @tag :integration
@@ -64,7 +55,8 @@ defmodule Openrouter.Integration.ErrorHandlingTest do
         Openrouter.chat(
           "Hello",
           model: "openai/gpt-3.5-turbo",
-          temperature: 5.0  # Invalid: should be 0-2
+          # Invalid: should be 0-2
+          temperature: 5.0
         )
 
       # Might succeed (API might clamp) or error
@@ -111,7 +103,7 @@ defmodule Openrouter.Integration.ErrorHandlingTest do
   end
 
   describe "streaming errors" do
-    @tag :integration
+    @tag :skip_reqord
     test "handles invalid model in streaming" do
       result = Openrouter.chat_stream("Hello", model: "invalid/model-xyz")
 
@@ -119,7 +111,7 @@ defmodule Openrouter.Integration.ErrorHandlingTest do
       assert error.type in [:invalid_request, :not_found]
     end
 
-    @tag :integration
+    @tag :skip_reqord
     test "handles authentication error in streaming" do
       client = Openrouter.new(api_key: "invalid-key")
 
@@ -185,7 +177,8 @@ defmodule Openrouter.Integration.ErrorHandlingTest do
         Openrouter.chat(
           "Write a very long essay",
           model: "openai/gpt-3.5-turbo",
-          timeout: 1  # 1ms - should timeout
+          # 1ms - should timeout
+          timeout: 1
         )
 
       # Should timeout or complete very quickly
@@ -269,11 +262,9 @@ defmodule Openrouter.Integration.ErrorHandlingTest do
   end
 
   describe "network errors" do
-    @tag :integration
+    @tag :skip_reqord
     test "handles invalid base URL" do
-      client = Openrouter.new(
-        base_url: "https://invalid-url-that-does-not-exist.com/api"
-      )
+      client = Openrouter.new(base_url: "https://invalid-url-that-does-not-exist.com/api")
 
       result = Openrouter.chat(client, "Hello", model: "openai/gpt-3.5-turbo")
 
@@ -306,7 +297,7 @@ defmodule Openrouter.Integration.ErrorHandlingTest do
   end
 
   describe "error recovery" do
-    @tag :integration
+    @tag :skip_reqord
     test "can recover from error and make successful request" do
       # First, make an invalid request
       {:error, _error} = Openrouter.chat("Hello", model: "invalid/model")

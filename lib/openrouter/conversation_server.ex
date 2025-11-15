@@ -177,7 +177,7 @@ defmodule Openrouter.ConversationServer do
       receive do
         {:stream_chunk, chunk} -> IO.write(chunk.content)
         {:stream_done, response} -> IO.puts("\nDone!")
-        {:stream_error, error} -> IO.puts("Error: #{inspect(error)}")
+        {:stream_error, err} -> IO.puts("Error occurred")
       end
   """
   @spec send_message_stream(server_ref(), String.t(), keyword()) :: :ok
@@ -191,8 +191,8 @@ defmodule Openrouter.ConversationServer do
   ## Examples
 
       messages = Openrouter.ConversationServer.get_messages(pid)
-      Enum.each(messages, fn msg ->
-        IO.puts("#{msg.role}: #{msg.content}")
+      Enum.each(messages, fn m ->
+        IO.inspect(m)
       end)
   """
   @spec get_messages(server_ref()) :: [map()]
@@ -218,7 +218,7 @@ defmodule Openrouter.ConversationServer do
   ## Examples
 
       conversation = Openrouter.ConversationServer.get_conversation(pid)
-      IO.puts("Conversation ID: #{conversation.id}")
+      IO.inspect(conversation)
   """
   @spec get_conversation(server_ref()) :: Conversation.t()
   def get_conversation(server) do
@@ -424,7 +424,10 @@ defmodule Openrouter.ConversationServer do
 
   defp split_opts(opts) do
     gen_opts = Keyword.take(opts, [:name, :timeout, :debug, :spawn_opt, :hibernate_after])
-    conversation_opts = Keyword.drop(opts, [:name, :timeout, :debug, :spawn_opt, :hibernate_after])
+
+    conversation_opts =
+      Keyword.drop(opts, [:name, :timeout, :debug, :spawn_opt, :hibernate_after])
+
     {gen_opts, conversation_opts}
   end
 

@@ -1,16 +1,8 @@
 defmodule Openrouter.Integration.MultimodalTest do
-  use ExUnit.Case
+  use Reqord.Case
 
   @moduletag :integration
   @moduletag :multimodal
-
-  setup do
-    unless System.get_env("OPENROUTER_API_KEY") || System.get_env("REQORD_MODE") == "replay" do
-      ExUnit.configure(exclude: [:integration])
-    end
-
-    :ok
-  end
 
   describe "image analysis from URL" do
     @tag :integration
@@ -69,10 +61,10 @@ defmodule Openrouter.Integration.MultimodalTest do
     @tag :integration
     test "builds multimodal content with Content.build/2" do
       content =
-        Openrouter.Content.build([
+        Openrouter.Content.build(
           text: "What's in this image?",
           image_url: "https://picsum.photos/200/200"
-        ])
+        )
 
       {:ok, response} =
         Openrouter.chat(
@@ -86,11 +78,11 @@ defmodule Openrouter.Integration.MultimodalTest do
     @tag :integration
     test "builds complex multimodal content" do
       content =
-        Openrouter.Content.build([
+        Openrouter.Content.build(
           text: "Analyze these images",
           image_url: "https://picsum.photos/200/200",
           image_url: "https://picsum.photos/200/201"
-        ])
+        )
 
       assert length(content) == 3
       assert Enum.at(content, 0)[:type] == :text
@@ -113,9 +105,9 @@ defmodule Openrouter.Integration.MultimodalTest do
       # Create a small test image (1x1 PNG)
       # This is a minimal valid PNG file
       png_data =
-        <<137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1,
-          8, 0, 0, 0, 0, 58, 126, 155, 85, 0, 0, 0, 10, 73, 68, 65, 84, 8, 153, 99, 0, 1, 0, 0,
-          5, 0, 1, 13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130>>
+        <<137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8,
+          0, 0, 0, 0, 58, 126, 155, 85, 0, 0, 0, 10, 73, 68, 65, 84, 8, 153, 99, 0, 1, 0, 0, 5, 0,
+          1, 13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130>>
 
       content = [
         Openrouter.Content.text("What color is this image?"),
@@ -215,10 +207,11 @@ defmodule Openrouter.Integration.MultimodalTest do
 
     @tag :integration
     test "creates custom file content" do
-      content = Openrouter.Content.file(
-        "https://example.com/data.csv",
-        filename: "data.csv"
-      )
+      content =
+        Openrouter.Content.file(
+          "https://example.com/data.csv",
+          filename: "data.csv"
+        )
 
       assert content[:type] == :file
       assert content[:file][:file_data] == "https://example.com/data.csv"

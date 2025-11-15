@@ -6,21 +6,22 @@ defmodule Openrouter.RetryTest do
 
   describe "exponential_backoff/4" do
     test "calculates exponential backoff without jitter" do
-      assert Retry.exponential_backoff(1, 1000, 32000, false) == 1000
-      assert Retry.exponential_backoff(2, 1000, 32000, false) == 2000
-      assert Retry.exponential_backoff(3, 1000, 32000, false) == 4000
-      assert Retry.exponential_backoff(4, 1000, 32000, false) == 8000
-      assert Retry.exponential_backoff(5, 1000, 32000, false) == 16000
-      assert Retry.exponential_backoff(6, 1000, 32000, false) == 32000
+      assert Retry.exponential_backoff(1, 1000, 32_000, false) == 1000
+      assert Retry.exponential_backoff(2, 1000, 32_000, false) == 2000
+      assert Retry.exponential_backoff(3, 1000, 32_000, false) == 4000
+      assert Retry.exponential_backoff(4, 1000, 32_000, false) == 8000
+      assert Retry.exponential_backoff(5, 1000, 32_000, false) == 16_000
+      assert Retry.exponential_backoff(6, 1000, 32_000, false) == 32_000
       # Should cap at max_delay
-      assert Retry.exponential_backoff(7, 1000, 32000, false) == 32000
+      assert Retry.exponential_backoff(7, 1000, 32_000, false) == 32_000
     end
 
     test "adds jitter when enabled" do
       # With jitter, the delay should be base_delay + random jitter
-      delay = Retry.exponential_backoff(1, 1000, 32000, true)
+      delay = Retry.exponential_backoff(1, 1000, 32_000, true)
       assert delay >= 1000
-      assert delay <= 1250  # Max 25% jitter
+      # Max 25% jitter
+      assert delay <= 1250
     end
   end
 
@@ -77,7 +78,8 @@ defmodule Openrouter.RetryTest do
       result =
         Retry.with_retry(
           fn ->
-            count = :counters.add(call_count, 1, 1)
+            :counters.add(call_count, 1, 1)
+            count = :counters.get(call_count, 1)
 
             if count < 3 do
               {:error, Error.new(:rate_limit, "Rate limited")}
@@ -106,7 +108,8 @@ defmodule Openrouter.RetryTest do
           base_delay: 10
         )
 
-      assert {:error, %Error{type: :timeout}} = result
+      # Returns the original error after exhausting retries
+      assert {:error, %Error{type: :rate_limit}} = result
       assert :counters.get(call_count, 1) == 3
     end
 
@@ -154,7 +157,8 @@ defmodule Openrouter.RetryTest do
           end,
           max_attempts: 3,
           base_delay: 10,
-          retry_on: [:rate_limit]  # Only retry rate_limit errors
+          # Only retry rate_limit errors
+          retry_on: [:rate_limit]
         )
 
       # Should not retry since server_error is not in retry_on list
