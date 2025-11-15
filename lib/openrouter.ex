@@ -287,21 +287,26 @@ defmodule Openrouter do
         model: "openai/gpt-4"
       )
   """
-  @spec extract(client() | String.t(), String.t() | keyword(), keyword()) ::
+  @spec extract(
+          client() | String.t() | messages(),
+          String.t() | messages() | keyword(),
+          keyword()
+        ) ::
           {:ok, struct() | map()} | {:error, Error.t() | Ecto.Changeset.t()}
-  def extract(client_or_prompt, prompt_or_opts \\ [], opts \\ [])
+  def extract(client_or_prompt_or_messages, prompt_or_messages_or_opts \\ [], opts \\ [])
 
-  def extract(%Client{} = client, prompt, opts) when is_binary(prompt) and is_list(opts) do
+  # Client + messages (list) + opts
+  def extract(%Client{} = client, messages, opts) when is_list(messages) and is_list(opts) do
     schema_module = opts[:schema]
     json_schema = opts[:json_schema]
     max_retries = opts[:max_retries] || 3
 
     cond do
       schema_module && Code.ensure_loaded?(schema_module) ->
-        extract_with_ecto_schema(client, prompt, schema_module, opts, max_retries)
+        extract_with_ecto_schema(client, messages, schema_module, opts, max_retries)
 
       json_schema ->
-        extract_with_json_schema(client, prompt, json_schema, opts, max_retries)
+        extract_with_json_schema(client, messages, json_schema, opts, max_retries)
 
       true ->
         {:error,
@@ -312,57 +317,101 @@ defmodule Openrouter do
     end
   end
 
+  # Client + string prompt + opts (backward compatibility)
+  def extract(%Client{} = client, prompt, opts) when is_binary(prompt) and is_list(opts) do
+    # Convert string prompt to messages list
+    messages = [%{role: :user, content: prompt}]
+    extract(client, messages, opts)
+  end
+
+  # Messages (list) + opts
+  def extract(messages, opts, _) when is_list(messages) and is_list(opts) do
+    client = new()
+    extract(client, messages, opts)
+  end
+
+  # String prompt + opts (backward compatibility)
   def extract(prompt, opts, _) when is_binary(prompt) and is_list(opts) do
     client = new()
-    extract(client, prompt, opts)
+    messages = [%{role: :user, content: prompt}]
+    extract(client, messages, opts)
   end
 
   # Private helpers for extract
 
-  defp extract_with_ecto_schema(client, prompt, schema_module, opts, max_retries) do
+  defp extract_with_ecto_schema(client, messages, schema_module, opts, max_retries) do
     # Generate JSON schema from Ecto schema
     json_schema = Openrouter.Schema.to_json_schema(schema_module)
 
-    # Build extraction prompt
-    system_prompt =
-      opts[:system_prompt] ||
-        """
-        You are a data extraction assistant. Extract the requested information from the text
-        and respond with ONLY a valid JSON object matching the provided schema. Do not include
-        any additional text, explanations, or markdown formatting.
-        """
+    # Prepare messages - if messages is a string or simple list, wrap properly
+    messages = prepare_extraction_messages(messages, opts)
 
-    messages = [
-      %{role: :system, content: system_prompt},
-      %{role: :user, content: "#{prompt}\n\nSchema: #{Jason.encode!(json_schema)}"}
-    ]
+    # Add response_format to opts for structured output
+    schema_name = schema_module |> Module.split() |> List.last() |> Macro.underscore()
+
+    extraction_opts =
+      opts
+      |> Keyword.put(:response_format, %{
+        type: "json_schema",
+        json_schema: %{
+          name: schema_name,
+          strict: true,
+          schema: json_schema
+        }
+      })
 
     # Attempt extraction with retries
     do_extract_with_retries(
       client,
       messages,
       schema_module,
-      opts,
+      extraction_opts,
       max_retries,
       0
     )
   end
 
-  defp extract_with_json_schema(client, prompt, json_schema, opts, max_retries) do
-    system_prompt =
-      opts[:system_prompt] ||
-        """
-        You are a data extraction assistant. Extract the requested information from the text
-        and respond with ONLY a valid JSON object matching the provided schema. Do not include
-        any additional text, explanations, or markdown formatting.
-        """
+  defp extract_with_json_schema(client, messages, json_schema, opts, max_retries) do
+    # Prepare messages
+    messages = prepare_extraction_messages(messages, opts)
 
-    messages = [
-      %{role: :system, content: system_prompt},
-      %{role: :user, content: "#{prompt}\n\nSchema: #{Jason.encode!(json_schema)}"}
-    ]
+    # Add response_format to opts
+    extraction_opts =
+      opts
+      |> Keyword.put(:response_format, %{
+        type: "json_schema",
+        json_schema: %{
+          name: "extraction_result",
+          strict: true,
+          schema: json_schema
+        }
+      })
 
-    do_extract_json_with_retries(client, messages, json_schema, opts, max_retries, 0)
+    do_extract_json_with_retries(client, messages, json_schema, extraction_opts, max_retries, 0)
+  end
+
+  defp prepare_extraction_messages(messages, opts) when is_list(messages) do
+    # Check if messages already has system prompt
+    has_system =
+      Enum.any?(messages, fn msg ->
+        (is_map(msg) and Map.get(msg, :role) == :system) or
+          (is_map(msg) and Map.get(msg, "role") == "system")
+      end)
+
+    if has_system do
+      # User provided their own system prompt, use messages as-is
+      messages
+    else
+      # Add default system prompt for extraction
+      system_prompt =
+        opts[:system_prompt] ||
+          """
+          You are a data extraction assistant. Extract the requested information
+          and respond with a valid JSON object. The schema will be enforced automatically.
+          """
+
+      [%{role: :system, content: system_prompt} | messages]
+    end
   end
 
   defp do_extract_with_retries(_client, _messages, _schema_module, _opts, max_retries, attempt)

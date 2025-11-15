@@ -335,4 +335,75 @@ defmodule Openrouter.Integration.MultimodalTest do
       end
     end
   end
+
+  describe "multimodal structured extraction" do
+    defmodule ImageAnalysisSchema do
+      use Openrouter.Schema
+
+      embedded_schema do
+        field(:description, :string)
+        field(:colors, {:array, :string})
+        field(:objects, {:array, :string})
+      end
+
+      def changeset(schema, attrs) do
+        schema
+        |> Ecto.Changeset.cast(attrs, [:description, :colors, :objects])
+        |> Ecto.Changeset.validate_required([:description])
+      end
+    end
+
+    @tag :integration
+    @tag :skip
+    test "extracts structured data from image with response_format" do
+      messages = [
+        %{
+          role: :user,
+          content: [
+            Openrouter.Content.text(
+              "Analyze this image and provide details about colors and objects"
+            ),
+            Openrouter.Content.image_url("https://picsum.photos/400/300")
+          ]
+        }
+      ]
+
+      {:ok, result} =
+        Openrouter.extract(
+          messages,
+          schema: ImageAnalysisSchema,
+          model: "openai/gpt-4o"
+        )
+
+      assert %ImageAnalysisSchema{} = result
+      assert is_binary(result.description)
+      assert is_list(result.colors) or is_nil(result.colors)
+      assert is_list(result.objects) or is_nil(result.objects)
+    end
+
+    @tag :integration
+    @tag :skip
+    test "extracts structured data with messages and custom system prompt" do
+      messages = [
+        %{role: :system, content: "You are an expert image analyst."},
+        %{
+          role: :user,
+          content: [
+            Openrouter.Content.text("What colors and objects do you see?"),
+            Openrouter.Content.image_url("https://picsum.photos/400/300")
+          ]
+        }
+      ]
+
+      {:ok, result} =
+        Openrouter.extract(
+          messages,
+          schema: ImageAnalysisSchema,
+          model: "openai/gpt-4o"
+        )
+
+      assert %ImageAnalysisSchema{} = result
+      assert is_binary(result.description)
+    end
+  end
 end

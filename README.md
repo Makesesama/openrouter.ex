@@ -163,9 +163,45 @@ IO.inspect(recipe.ingredients)
 
 **The library automatically:**
 - ✅ Generates JSON schema from your Ecto schema
-- ✅ Validates the LLM response
+- ✅ Uses OpenRouter's native `response_format` for structured outputs
+- ✅ Validates the LLM response against your schema
 - ✅ Retries with error feedback if validation fails
 - ✅ Returns a properly typed struct
+
+**Multimodal extraction:**
+
+```elixir
+# Extract structured data from images
+defmodule ImageAnalysisSchema do
+  use Openrouter.Schema
+
+  embedded_schema do
+    field :description, :string
+    field :objects, {:array, :string}
+    field :colors, {:array, :string}
+  end
+
+  def changeset(schema, attrs) do
+    schema
+    |> cast(attrs, [:description, :objects, :colors])
+    |> validate_required([:description])
+  end
+end
+
+messages = [
+  %{role: :user, content: [
+    Openrouter.Content.text("Analyze this image"),
+    Openrouter.Content.image_url("https://example.com/photo.jpg")
+  ]}
+]
+
+{:ok, analysis} = Openrouter.extract(
+  messages,
+  schema: ImageAnalysisSchema,
+  model: "openai/gpt-4o"
+)
+# Returns validated struct with description, objects, and colors
+```
 
 **Nested schemas with `embeds_one` and `embeds_many`:**
 

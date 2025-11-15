@@ -119,6 +119,7 @@ defmodule Openrouter.Provider.OpenRouter do
     |> maybe_add(:stop, params[:stop])
     |> maybe_add(:tools, params[:tools])
     |> maybe_add(:tool_choice, params[:tool_choice])
+    |> maybe_add(:response_format, params[:response_format])
   end
 
   defp transform_stream(stream) do
