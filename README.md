@@ -56,11 +56,13 @@ One SDK, all models. No need to build separate clients for each provider.
 ### 📊 **Production Features**
 - **Cost Tracking & Budgeting**: Track spending, set budgets, estimate costs
 - **Token Counting**: Estimate tokens and costs before API calls
+- **Response Caching**: Cache LLM responses and embeddings with TTL support
+- **Prompt Templates**: Reusable templates with variables and conditionals
 - Comprehensive telemetry events
 - Retry logic with exponential backoff
 - Rate limit handling
 - Error types and recovery
-- 1400+ tests (unit + integration)
+- 1700+ tests (unit + integration)
 
 ## Quick Start
 
@@ -471,6 +473,87 @@ session_stats = Openrouter.CostTracker.get_session_stats(tracker, "conv-123")
 IO.puts("Conversation cost: $#{session_stats.cost}")
 ```
 
+### Response Caching
+
+Reduce costs and latency by caching LLM responses and embeddings:
+
+```elixir
+# Start cache server
+{:ok, cache} = Openrouter.Cache.start_link(
+  backend: :ets,
+  max_size: 10_000,
+  default_ttl: :timer.hours(24),
+  eviction_policy: :lru
+)
+
+# Cache chat responses automatically
+cache_key = Openrouter.Cache.chat_key(messages, model: "gpt-4", temperature: 0)
+
+result = Openrouter.Cache.fetch(cache, cache_key, fn ->
+  Openrouter.chat(messages, model: "gpt-4", temperature: 0)
+end, ttl: :timer.hours(24))
+
+# Cache embeddings (deterministic, so use infinite TTL)
+embedding = Openrouter.Cache.fetch_embedding(cache, "hello world",
+  model: "text-embedding-ada-002",
+  ttl: :infinity,
+  compute_fn: fn -> Openrouter.embeddings("hello world", model: "...") end
+)
+
+# View cache statistics
+stats = Openrouter.Cache.stats(cache)
+IO.puts("Hit rate: #{stats.hit_rate * 100}%")
+IO.puts("Cache size: #{stats.size} entries")
+```
+
+**Features:**
+- In-memory (map) and ETS backends
+- TTL-based expiration
+- LRU and FIFO eviction policies
+- Automatic cache key generation
+- Statistics tracking (hits, misses, memory usage)
+
+### Prompt Templates
+
+Create reusable prompt templates with variable substitution and conditionals:
+
+```elixir
+# Define a template
+template = Openrouter.PromptTemplate.new("""
+You are a {{role}} expert in {{domain}}.
+
+User Question: {{question}}
+
+{{#if context}}
+Relevant Context:
+{{context}}
+{{/if}}
+
+Please provide a {{style}} answer.
+""",
+  defaults: %{style: "detailed", role: "helpful assistant"}
+)
+
+# Render with variables
+{:ok, prompt} = Openrouter.PromptTemplate.render(template,
+  domain: "Elixir programming",
+  question: "How do GenServers work?",
+  context: "The user is building a real-time chat application",
+  style: "concise"
+)
+
+# Use in API call
+{:ok, response} = Openrouter.chat(prompt, model: "gpt-4")
+```
+
+**Features:**
+- Variable substitution with `{{variable}}` syntax
+- Conditional blocks with `{{#if var}}...{{/if}}`
+- Default values for optional variables
+- Template composition (combine multiple templates)
+- Load templates from files
+- Validation for missing required variables
+
 ## Examples
 
 The `examples/` directory contains comprehensive examples:
@@ -484,6 +567,8 @@ The `examples/` directory contains comprehensive examples:
 - **`run_context.exs`** - Dependency injection patterns
 - **`conversation.exs`** - Stateless and stateful conversations
 - **`cost_tracking.exs`** - Cost tracking, budgeting, and token estimation
+- **`caching.exs`** - Response and embedding caching with TTL and eviction
+- **`prompt_templates.exs`** - Reusable prompts with variables and conditionals
 
 ### Advanced Patterns
 - **`rag.exs`** - RAG (Retrieval Augmented Generation) with vector search
@@ -495,6 +580,8 @@ Run with:
 ```bash
 mix run examples/basic_usage.exs
 mix run examples/cost_tracking.exs
+mix run examples/caching.exs
+mix run examples/prompt_templates.exs
 mix run examples/rag.exs
 mix run examples/phoenix_liveview.exs
 ```
@@ -664,6 +751,7 @@ See [`DESIGN.md`](./DESIGN.md) for the complete design document.
 
 - **[API Documentation](https://hexdocs.pm/openrouter)** - Full API reference
 - **[DESIGN.md](./DESIGN.md)** - Complete design document
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Production deployment guide
 - **[PYDANTIC_AI_ANALYSIS.md](./PYDANTIC_AI_ANALYSIS.md)** - Analysis of Pydantic AI
 - **[Integration Tests README](./test/integration/README.md)** - Testing guide
 
@@ -682,12 +770,14 @@ Contributions are welcome! Please:
 - [x] More examples (RAG, web search, multi-agent, Phoenix LiveView)
 - [x] Cost tracking and budgeting
 - [x] Token counting utilities
-- [ ] Prompt template management
+- [x] Prompt template management
+- [x] Response and embedding caching
+- [x] Production deployment guide
 - [ ] Additional persistence backends (Postgres, Mnesia)
 - [ ] Performance benchmarks
-- [ ] Production deployment guides
-- [ ] Prompt caching optimization
+- [ ] Prompt caching optimization (OpenRouter native)
 - [ ] More model provider support (Ollama, local models)
+- [ ] Circuit breaker and rate limiting utilities
 
 ## License
 
