@@ -120,9 +120,6 @@ defmodule CompanySchema do
   end
 end
 
-# Note: For now, embeds_one requires manual handling
-# This is a simplified example
-
 IO.puts("\n=== Example 3: Company Extraction (Nested) ===")
 
 company_text = """
