@@ -304,8 +304,8 @@ defmodule Openrouter.Integration.MultimodalTest do
           assert true
 
         {:error, error} ->
-          # Expected error
-          assert error.type in [:invalid_request, :server_error]
+          # Expected error (permission_denied can occur for invalid image URLs)
+          assert error.type in [:invalid_request, :server_error, :permission_denied]
       end
     end
 

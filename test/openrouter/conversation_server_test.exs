@@ -97,7 +97,7 @@ defmodule Openrouter.ConversationServerTest do
 
       # Simulate adding messages (we'll test with get_conversation)
       conv = ConversationServer.get_conversation(pid)
-      conv = Openrouter.Conversation.user(conv, "Hello")
+      _conv = Openrouter.Conversation.user(conv, "Hello")
       # Manually update state for testing
 
       :ok = ConversationServer.clear(pid)

@@ -101,7 +101,7 @@ defmodule Openrouter.CacheTest do
       Cache.put(cache, "shared", "data")
 
       tasks =
-        for i <- 1..10 do
+        for _i <- 1..10 do
           Task.async(fn ->
             Cache.get(cache, "shared")
           end)

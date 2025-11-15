@@ -6,10 +6,13 @@
 # Then run this file:
 #   mix run examples/basic_usage.exs
 
+# Start the application to load configuration
+Application.ensure_all_started(:openrouter)
+
 # Example 1: Simple chat
 IO.puts("\n=== Example 1: Simple Chat ===")
 
-case Openrouter.chat("What is the capital of France?", model: "anthropic/claude-sonnet-4-0") do
+case Openrouter.chat("What is the capital of France?", model: "anthropic/claude-sonnet-4.5") do
   {:ok, response} ->
     IO.puts("Response: #{response.content}")
     IO.puts("Model: #{response.model}")
@@ -40,10 +43,11 @@ end
 # Example 3: Using a client
 IO.puts("\n=== Example 3: Using a Client ===")
 
-client = Openrouter.new(
-  model: "anthropic/claude-sonnet-4-0",
-  temperature: 0.7
-)
+client =
+  Openrouter.new(
+    model: "anthropic/claude-sonnet-4.5",
+    temperature: 0.7
+  )
 
 {:ok, response1} = Openrouter.chat(client, "Tell me a fun fact about space")
 IO.puts("Fact 1: #{response1.content}")

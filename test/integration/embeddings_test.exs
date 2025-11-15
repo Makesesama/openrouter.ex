@@ -29,7 +29,7 @@ defmodule Openrouter.Integration.EmbeddingsTest do
       assert length(embedding) == 1536
     end
 
-    @tag :skip_reqord
+    @tag :integration
     test "different texts produce different embeddings" do
       {:ok, [embedding1]} =
         Openrouter.embed(
@@ -47,7 +47,7 @@ defmodule Openrouter.Integration.EmbeddingsTest do
       refute embedding1 == embedding2
     end
 
-    @tag :skip_reqord
+    @tag :integration
     test "similar texts produce similar embeddings" do
       {:ok, [embedding1]} =
         Openrouter.embed(
@@ -88,7 +88,7 @@ defmodule Openrouter.Integration.EmbeddingsTest do
       assert length(dimensions) == 1
     end
 
-    @tag :skip_reqord
+    @tag :integration
     test "batch embeddings maintain order" do
       texts = ["First", "Second", "Third"]
 
@@ -175,7 +175,7 @@ defmodule Openrouter.Integration.EmbeddingsTest do
   end
 
   describe "semantic similarity" do
-    @tag :skip_reqord
+    @tag :integration
     test "finds semantically similar texts" do
       query = "artificial intelligence"
 

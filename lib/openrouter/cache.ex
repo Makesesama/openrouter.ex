@@ -337,7 +337,7 @@ defmodule Openrouter.Cache do
 
   @impl true
   def handle_call({:get, key}, _from, state) do
-    now = System.monotonic_time(:millisecond)
+    now = System.monotonic_time(:microsecond)
 
     case fetch_from_storage(state.storage, key, state.backend) do
       nil ->
@@ -363,7 +363,7 @@ defmodule Openrouter.Cache do
   @impl true
   def handle_call({:put, key, value, opts}, _from, state) do
     ttl = Keyword.get(opts, :ttl, state.default_ttl)
-    now = System.monotonic_time(:millisecond)
+    now = System.monotonic_time(:microsecond)
 
     entry = %{
       value: value,
@@ -373,12 +373,13 @@ defmodule Openrouter.Cache do
       last_accessed: now
     }
 
-    # Check if we need to evict
+    # Check if we need to evict (only if adding a new key)
+    key_exists = fetch_from_storage(state.storage, key, state.backend) != nil
     current_size = storage_size(state.storage, state.backend)
 
     {new_storage, new_stats} =
-      if current_size >= state.max_size do
-        # Evict based on policy
+      if not key_exists and current_size >= state.max_size do
+        # Evict based on policy (only when adding NEW key at capacity)
         evict_one(state.storage, state.backend, state.eviction_policy, state.stats)
       else
         {state.storage, state.stats}
@@ -500,7 +501,8 @@ defmodule Openrouter.Cache do
   defp expired?(%{ttl: :infinity}, _now), do: false
 
   defp expired?(%{inserted_at: inserted_at, ttl: ttl}, now) do
-    now > inserted_at + ttl
+    # TTL is in milliseconds, timestamps are in microseconds
+    now > inserted_at + ttl * 1000
   end
 
   defp update_stats(stats, :hit) do
@@ -587,18 +589,19 @@ defmodule Openrouter.Cache do
     entry_value = get_field_value(entry, field)
     acc_value = get_field_value(acc_entry, field)
 
-    if entry_value < acc_value do
-      {key, entry}
-    else
-      acc
+    cond do
+      entry_value < acc_value ->
+        {key, entry}
+
+      # Tiebreaker: if values are equal, use inserted_at (older entry is victim)
+      entry_value == acc_value and entry.inserted_at < acc_entry.inserted_at ->
+        {key, entry}
+
+      true ->
+        acc
     end
   end
 
-  defp get_field_value(entry, field) do
-    case field do
-      :last_accessed -> entry.last_accessed
-      :inserted_at -> entry.inserted_at
-      _ -> Map.get(entry, field)
-    end
-  end
+  defp get_field_value(entry, :last_accessed), do: entry.last_accessed
+  defp get_field_value(entry, :inserted_at), do: entry.inserted_at
 end

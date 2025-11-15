@@ -2,7 +2,7 @@ defmodule Openrouter.RunContextTest do
   use ExUnit.Case, async: true
 
   alias Openrouter.RunContext
-  alias Openrouter.Types.{Message, Usage}
+  alias Openrouter.Types.Usage
 
   describe "RunContext.new/1" do
     test "creates a new context with defaults" do

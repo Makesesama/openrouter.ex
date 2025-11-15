@@ -119,6 +119,7 @@ defmodule Openrouter.Types.Message do
   defp role_to_string(:user), do: "user"
   defp role_to_string(:assistant), do: "assistant"
   defp role_to_string(:tool), do: "tool"
+  defp role_to_string(role) when is_binary(role), do: role
 
   defp string_to_role("system"), do: :system
   defp string_to_role("user"), do: :user

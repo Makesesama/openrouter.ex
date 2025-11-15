@@ -138,14 +138,15 @@ defmodule Openrouter.Provider.OpenRouter do
       finish_reason = choice["finish_reason"]
 
       cond do
-        delta && delta["content"] ->
+        # Check finish_reason first, as it signals stream completion
+        finish_reason ->
+          %{type: :done, finish_reason: finish_reason}
+
+        delta && delta["content"] && delta["content"] != "" ->
           %{type: :content, content: delta["content"]}
 
         delta && delta["tool_calls"] ->
           %{type: :tool_calls, tool_calls: delta["tool_calls"]}
-
-        finish_reason ->
-          %{type: :done, finish_reason: finish_reason}
 
         true ->
           nil

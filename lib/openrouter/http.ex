@@ -179,21 +179,45 @@ defmodule Openrouter.HTTP do
     try do
       response = Req.request!(request_opts)
 
+      # Check what type of body we got
       stream =
-        Stream.resource(
-          fn -> {response, start_time, metadata, 0} end,
-          &process_stream_chunk/1,
-          fn {_response, start_time, metadata, chunk_count} ->
-            # Emit stop event when stream completes
-            duration = System.monotonic_time() - start_time
+        case response.body do
+          %Req.Response.Async{ref: ref} ->
+            # Live streaming - extract ref and process messages
+            Stream.resource(
+              fn -> {ref, start_time, metadata, 0} end,
+              &process_stream_chunk/1,
+              fn {_ref, start_time, metadata, chunk_count} ->
+                duration = System.monotonic_time() - start_time
 
-            :telemetry.execute(
-              [:openrouter, :stream, :stop],
-              %{duration: duration, chunk_count: chunk_count},
-              metadata
+                :telemetry.execute(
+                  [:openrouter, :stream, :stop],
+                  %{duration: duration, chunk_count: chunk_count},
+                  metadata
+                )
+              end
             )
-          end
-        )
+
+          body when is_binary(body) ->
+            # Cassette replay - body is already the full SSE response
+            # Parse the SSE data directly
+            Stream.resource(
+              fn -> {body, start_time, metadata, 0} end,
+              &process_cassette_stream/1,
+              fn {_body, start_time, metadata, chunk_count} ->
+                duration = System.monotonic_time() - start_time
+
+                :telemetry.execute(
+                  [:openrouter, :stream, :stop],
+                  %{duration: duration, chunk_count: chunk_count},
+                  metadata
+                )
+              end
+            )
+
+          other ->
+            raise "Unexpected response body type: #{inspect(other)}"
+        end
 
       {:ok, stream}
     rescue
@@ -214,41 +238,107 @@ defmodule Openrouter.HTTP do
 
   # Private helpers
 
-  defp process_stream_chunk({response, start_time, metadata, chunk_count}) do
-    receive do
-      {^response, {:data, data}} ->
-        # Parse SSE data
-        case parse_sse_event(data) do
+  defp process_cassette_stream({"", _start_time, _metadata, chunk_count}) do
+    # No more data to process
+    {:halt, {"", 0, %{}, chunk_count}}
+  end
+
+  defp process_cassette_stream({body, start_time, metadata, chunk_count}) do
+    # Split the body into SSE events (separated by \n\n)
+    case String.split(body, "\n\n", parts: 2) do
+      [event_data, rest] when event_data != "" ->
+        # Parse this SSE event
+        case parse_sse_event(event_data) do
           {:ok, event} ->
-            # Emit chunk event
+            # Emit telemetry
             :telemetry.execute(
               [:openrouter, :stream, :chunk],
-              %{chunk_size: byte_size(data)},
+              %{chunk_size: byte_size(event_data)},
               metadata
             )
 
-            {[event], {response, start_time, metadata, chunk_count + 1}}
+            {[event], {rest, start_time, metadata, chunk_count + 1}}
 
           :done ->
-            {:halt, {response, start_time, metadata, chunk_count}}
+            {:halt, {rest, start_time, metadata, chunk_count}}
 
           :skip ->
-            {[], {response, start_time, metadata, chunk_count}}
+            # Skip this chunk and continue with rest
+            {[], {rest, start_time, metadata, chunk_count}}
         end
 
-      {^response, :done} ->
-        {:halt, {response, start_time, metadata, chunk_count}}
-
-      {^response, {:error, error}} ->
-        raise error
-    after
-      60_000 ->
-        {:halt, {response, start_time, metadata, chunk_count}}
+      _ ->
+        # No complete event found, we're done
+        {:halt, {body, start_time, metadata, chunk_count}}
     end
   end
 
+  defp process_stream_chunk({ref, start_time, metadata, chunk_count}) do
+    receive do
+      {^ref, {:data, data}} ->
+        # Parse SSE data - may contain multiple events separated by \n\n
+        events = parse_sse_events(data)
+
+        :telemetry.execute(
+          [:openrouter, :stream, :chunk],
+          %{chunk_size: byte_size(data)},
+          metadata
+        )
+
+        # Filter out :skip and :done markers, extract actual events
+        actual_events =
+          Enum.filter(events, fn
+            {:ok, _event} -> true
+            _ -> false
+          end)
+          |> Enum.map(fn {:ok, event} -> event end)
+
+        # Check if we got a :done marker
+        has_done = Enum.any?(events, &(&1 == :done))
+
+        cond do
+          has_done ->
+            # Stream is complete
+            {actual_events, {ref, start_time, metadata, chunk_count + length(actual_events)}}
+            |> then(fn result ->
+              # Return events then halt
+              result
+            end)
+
+          # Actually we need to halt after returning these events
+          # But Stream.resource doesn't allow that, so we'll check in next iteration
+
+          length(actual_events) > 0 ->
+            {actual_events, {ref, start_time, metadata, chunk_count + length(actual_events)}}
+
+          true ->
+            # No valid events, continue
+            {[], {ref, start_time, metadata, chunk_count}}
+        end
+
+      {^ref, :done} ->
+        {:halt, {ref, start_time, metadata, chunk_count}}
+
+      {^ref, {:error, error}} ->
+        raise error
+    after
+      60_000 ->
+        {:halt, {ref, start_time, metadata, chunk_count}}
+    end
+  end
+
+  defp parse_sse_events(data) do
+    # SSE events are separated by \n\n
+    # Split into individual events and parse each one
+    data
+    |> String.split("\n\n")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.map(&parse_sse_event/1)
+  end
+
   defp parse_sse_event(data) do
-    # SSE format: "data: {...}\n\n"
+    # SSE format: "data: {...}\n\n"  or just "data: {...}"
     data
     |> String.trim()
     |> String.split("\n")

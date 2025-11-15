@@ -189,7 +189,7 @@ defmodule Openrouter.PromptTemplate do
     combined_defaults =
       templates
       |> Enum.map(& &1.defaults)
-      |> Enum.reduce(%{}, &Map.merge/2)
+      |> Enum.reduce(%{}, fn defaults, acc -> Map.merge(acc, defaults) end)
 
     %__MODULE__{
       template: combined_template,

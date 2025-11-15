@@ -267,8 +267,8 @@ defmodule Openrouter.Tool do
               if is_nil(context) do
                 {:error, "Context required for context-aware tool"}
               else
-                # Context-aware function receives args as first argument, context as second
-                tool.function.(args, context)
+                # Context-aware function receives context as first argument, args as second
+                tool.function.(context, args)
               end
             else
               # Regular function just gets arguments

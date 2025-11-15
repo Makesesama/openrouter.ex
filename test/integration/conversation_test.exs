@@ -54,7 +54,7 @@ defmodule Openrouter.Integration.ConversationTest do
         )
 
       conv = Conversation.user(conv, "What is 15 plus 27?")
-      {:ok, conv, response} = Conversation.complete_with_agent(conv)
+      {:ok, _conv, response} = Conversation.complete_with_agent(conv)
 
       assert is_binary(response.content)
       assert response.content =~ ~r/42/

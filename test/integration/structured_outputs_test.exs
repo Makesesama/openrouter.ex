@@ -37,7 +37,7 @@ defmodule Openrouter.Integration.StructuredOutputsTest do
       assert person.city =~ "New York"
     end
 
-    @tag :skip_reqord
+    @tag :integration
     test "validates required fields" do
       # This text is missing age information
       text = "Alice lives in Boston"
@@ -204,7 +204,7 @@ defmodule Openrouter.Integration.StructuredOutputsTest do
       assert person.age == 25
     end
 
-    @tag :skip_reqord
+    @tag :integration
     test "respects max_retries limit" do
       # Invalid data that can't be fixed
       text = "No valid information here"
