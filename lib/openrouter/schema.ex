@@ -99,28 +99,41 @@ defmodule Openrouter.Schema do
   """
   @spec to_json_schema(module()) :: map()
   def to_json_schema(schema_module) do
+    to_json_schema(schema_module, strict: true)
+  end
+
+  @spec to_json_schema(module(), keyword()) :: map()
+  def to_json_schema(schema_module, opts) do
     if function_exported?(schema_module, :__schema__, 1) do
       fields = schema_module.__schema__(:fields)
       embeds = schema_module.__schema__(:embeds)
+      strict = Keyword.get(opts, :strict, true)
 
       properties =
         fields
         |> Enum.map(&build_field_property(&1, schema_module, embeds))
         |> Map.new()
 
-      # Get required fields from changeset if available
-      required_fields = get_required_fields(schema_module)
+      # For strict mode with OpenRouter/OpenAI:
+      # - In strict: true mode, ALL properties MUST be in required array (no optional fields)
+      # - In strict: false mode, only validated required fields are in required array
+      # - additionalProperties must be false
 
-      schema = %{
+      required_fields =
+        if strict do
+          # In strict mode, ALL fields must be required
+          Enum.map(fields, &Atom.to_string/1)
+        else
+          # In non-strict mode, only get required fields from changeset
+          get_required_fields_from_changeset(schema_module)
+        end
+
+      %{
         type: "object",
-        properties: properties
+        properties: properties,
+        required: required_fields,
+        additionalProperties: false
       }
-
-      if required_fields != [] do
-        Map.put(schema, :required, required_fields)
-      else
-        schema
-      end
     else
       raise ArgumentError, "#{inspect(schema_module)} is not an Ecto schema"
     end
@@ -153,17 +166,63 @@ defmodule Openrouter.Schema do
   Formats validation errors from a changeset into a readable string.
 
   This is used to provide feedback to the LLM when retrying.
+  Handles nested changesets from embeds_one and embeds_many.
   """
   @spec format_errors(Ecto.Changeset.t()) :: String.t()
   def format_errors(%Ecto.Changeset{} = changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
       Enum.reduce(opts, msg, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
+        String.replace(acc, "%{#{key}}", format_error_value(value))
       end)
     end)
-    |> Enum.map_join("; ", fn {field, errors} ->
-      "#{field}: #{Enum.join(errors, ", ")}"
+    |> format_error_map()
+  end
+
+  defp format_error_value(value) when is_binary(value), do: value
+  defp format_error_value(value) when is_integer(value), do: Integer.to_string(value)
+  defp format_error_value(value) when is_float(value), do: Float.to_string(value)
+  defp format_error_value(value) when is_atom(value), do: Atom.to_string(value)
+  defp format_error_value(value) when is_list(value), do: inspect(value)
+  defp format_error_value(value) when is_tuple(value), do: inspect(value)
+  defp format_error_value(value), do: inspect(value)
+
+  defp format_error_map(errors) when is_map(errors) do
+    errors
+    |> Enum.map_join("; ", fn {field, field_errors} ->
+      format_field_errors(field, field_errors)
     end)
+  end
+
+  defp format_field_errors(field, errors) when is_list(errors) do
+    # Check if it's a list of strings (simple errors) or list of maps (nested errors)
+    case errors do
+      [first | _] when is_binary(first) ->
+        # Simple string errors
+        "#{field}: #{Enum.join(errors, ", ")}"
+
+      [first | _] when is_map(first) ->
+        # Nested errors from embeds_many
+        nested_errors =
+          errors
+          |> Enum.with_index()
+          |> Enum.map_join("; ", fn {nested_map, idx} ->
+            "#{field}[#{idx}]: #{format_error_map(nested_map)}"
+          end)
+
+        nested_errors
+
+      [] ->
+        ""
+    end
+  end
+
+  defp format_field_errors(field, nested_map) when is_map(nested_map) do
+    # Nested errors from embeds_one
+    "#{field}: #{format_error_map(nested_map)}"
+  end
+
+  defp format_field_errors(field, error) when is_binary(error) do
+    "#{field}: #{error}"
   end
 
   # Private helpers
@@ -206,22 +265,40 @@ defmodule Openrouter.Schema do
   # Handle embedded schemas (embeds_one and embeds_many)
   defp ecto_embed_to_json_type(%Ecto.Embedded{cardinality: :one, related: related_module}) do
     # embeds_one: generate nested object schema
-    to_json_schema(related_module)
+    # Always use strict mode for nested schemas
+    to_json_schema(related_module, strict: true)
   end
 
   defp ecto_embed_to_json_type(%Ecto.Embedded{cardinality: :many, related: related_module}) do
     # embeds_many: generate array of nested objects
+    # Always use strict mode for nested schemas
     %{
       type: "array",
-      items: to_json_schema(related_module)
+      items: to_json_schema(related_module, strict: true)
     }
   end
 
-  defp get_required_fields(schema_module) do
+  defp get_required_fields_from_changeset(schema_module) do
     if function_exported?(schema_module, :changeset, 2) do
-      # Try to infer required fields from changeset
-      # This is a best-effort approach
-      []
+      # Try to infer required fields by running changeset with empty data
+      # and checking which fields have "can't be blank" errors
+      try do
+        changeset = schema_module.changeset(struct(schema_module), %{})
+
+        if changeset.valid? do
+          # No required fields
+          []
+        else
+          # Extract fields with "can't be blank" or "is required" errors
+          changeset.errors
+          |> Enum.filter(fn {_field, {msg, _opts}} ->
+            msg =~ "can't be blank" or msg =~ "is required"
+          end)
+          |> Enum.map(fn {field, _} -> Atom.to_string(field) end)
+        end
+      rescue
+        _ -> []
+      end
     else
       []
     end

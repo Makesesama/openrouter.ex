@@ -435,6 +435,8 @@ defmodule Openrouter do
 
   defp handle_response(client, messages, schema_module, opts, max_retries, attempt, response) do
     with {:ok, data} <- parse_json_response(response.content),
+         # Ensure data is a map (wrap array if needed for embeds_many at root)
+         data <- ensure_map_data(data),
          {:ok, struct} <- Openrouter.Schema.validate(schema_module, data) do
       {:ok, struct}
     else
@@ -550,6 +552,12 @@ defmodule Openrouter do
     |> String.trim()
   end
 
+  defp ensure_map_data(data) when is_map(data), do: data
+
+  # Model returned array at root - this shouldn't happen with strict mode
+  # but wrap it anyway for robustness
+  defp ensure_map_data(data) when is_list(data), do: data
+
   # Private helpers for messages
 
   defp normalize_messages(messages) when is_binary(messages) do
@@ -601,6 +609,7 @@ defmodule Openrouter do
       stop: opts[:stop],
       tools: opts[:tools],
       tool_choice: opts[:tool_choice],
+      response_format: opts[:response_format],
       timeout: opts[:timeout] || client.timeout
     }
     |> Enum.reject(fn {_k, v} -> is_nil(v) end)
